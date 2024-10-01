@@ -1,41 +1,9 @@
-/*
-
-'use client';
-
-import { useState, useEffect, useCallback } from 'react';
-import { logger, LogEntry } from './logger';
-
-export function useLogger(): [LogEntry[], () => void, () => void, (criteria: Partial<LogEntry>) => LogEntry[]] {
-  const [logs, setLogs] = useState<LogEntry[]>(logger.getLogs());
-
-  useEffect(() => {
-    const removeListener = logger.addListener(() => setLogs(logger.getLogs()));
-    return () => removeListener();
-  }, []);
-
-  const refreshLogs = useCallback(() => {
-    setLogs(logger.getLogs());
-  }, []);
-
-  return [
-    logs,
-    () => logger.clearLogs(),
-    refreshLogs,
-    (criteria: Partial<LogEntry>) => logger.filterLogs(criteria)
-  ];
-}
-
-*/
-
-
-
-
-/*
+/* USELOGGER IMPLEMENTATION FONCTIONNEL AVEC LE LOCAL-STORAGE 
 
 // useLogger.ts
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { logger, LogEntry } from '@/utils/Logger-Interface/service/logger';
+import { logger, LogEntry } from '@/utils/Logger-Interface/logger/logger-v1-OLD-with-LocalStorage';
 
 export function useLogger(): [
   LogEntry[],
@@ -79,6 +47,9 @@ export function useLogger(): [
 }
 
 */
+
+
+
 
 
 

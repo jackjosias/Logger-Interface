@@ -24,16 +24,25 @@ Project
         │   ├───api\
         │   │   └───server-logs\
         │   │       └───route.ts     
-        │   └───logger
-        │        └───page.TSX        
+        │   └───logger\
+        │       └───page.tsx        
+        │
         │   
         └───utils\
             └───Logger-Interface\
-                ├───logger           
-                ├───page
-                └───service
-                    ├───clientLogger
-                    └───serverLogger
+                  ├───old-logger-version\          
+                  ├───page\
+                  │     └───Interface.tsx
+                  ├───service\
+                  │     ├───clientLogger\
+                  │     │     ├───clientLogger.ts
+                  │     │     └───index.tx
+                  │     │
+                  │     └───serverLogger\
+                  │           ├───serverLogger.ts
+                  │           └───index.tx
+                  │
+                  └───useLogger.ts
 ```
 
 
