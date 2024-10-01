@@ -185,7 +185,7 @@ class ClientLogger implements ILogger {
     // Récupère les logs serveur depuis l'API.
     private async getServerLogs(): Promise<LogEntry[]> {
         try {
-            const response = await fetch('/api/server-logs'); // Fait une requête à l'API pour récupérer les logs serveur.
+            const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_LOGGER_API_URL}`); // Fait une requête à l'API pour récupérer les logs serveur.
             if (!response.ok) {
                 // Gérer les erreurs de requête ici si nécessaire, par exemple :
                 // throw new Error('Erreur lors de la récupération des logs serveur');
@@ -204,7 +204,8 @@ class ClientLogger implements ILogger {
     // Supprime tous les logs du serveur.
     private async clearServerAllLogs(): Promise<void> {
         try {
-            const response = await fetch('/api/server-logs', { // Effectue une requête DELETE à l'API.
+            const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_LOGGER_API_URL}`, 
+            { // Effectue une requête DELETE à l'API.
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',

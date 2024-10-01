@@ -33,33 +33,37 @@ Cette interface est sous la licence MIT, permettant une utilisation libre tout e
 
 ```
 Project
-    └───src\
-        ├───app\
-        │   ├───api\
-        │   │   └───server-logs\
-        │   │       └───route.ts     
-        │   │
-        │   └───logger\
-        │       └───page.tsx        
-        │
-        │   
-        └───utils\
-            └───Logger-Interface\
-                  ├───old-logger-version\  
-                  │        
-                  ├───page\
-                  │     └───Interface.tsx
-                  │
-                  ├───service\
-                  │     ├───clientLogger\
-                  │     │     ├───clientLogger.ts
-                  │     │     └───index.ts
-                  │     │
-                  │     └───serverLogger\
-                  │           ├───serverLogger.ts
-                  │           └───index.ts
-                  │
-                  └───useLogger.ts
+    ├───src\
+    │   ├───app\
+    │   │   ├───api\
+    │   │   │   └───server-logs\
+    │   │   │       └───route.ts     
+    │   │   │
+    │   │   └───logger\
+    │   │       └───page.tsx        
+    │   │
+    │   │   
+    │   └───utils\
+    │       └───Logger-Interface\
+    │             ├───old-logger-version\  
+    │             │        
+    │             ├───page\
+    │             │     └───Interface.tsx
+    │             │
+    │             ├───service\
+    │             │     ├───clientLogger\
+    │             │     │     ├───clientLogger.ts
+    │             │     │     └───index.ts
+    │             │     │
+    │             │     └───serverLogger\
+    │             │           ├───serverLogger.ts
+    │             │           └───index.ts
+    │             │
+    │             └───useLogger.ts
+    │  
+    │
+    └─── .env.local
+    
 ```
 
 
@@ -301,29 +305,75 @@ Project
 ***
 
 1- Cloner le Repo actuel.
-   1.1 - Creer un dossier 'Utils' si cela n'a pas encore ete fait.
-   1.2 - copier le Dossier [Logger-Interface] dans le Dossier [Utils].
+   1.1 - Creer un dossier 'Utils' dans la racine de votre Projet precisement dans le Dossier [src], si cela n'a pas encore ete fait.
+
+   1.2 - copier le Dossier [Logger-Interface] dans le Dossier [Utils] crée.
+   
    1.3 - INSTALLER TOUTES LES DEPENDANCES  voir en bas la liste des commandes. 👇🏾
 
+
 2- Configuration :
-   2.1 - Creer un composant de page 'logger' (React.js ou Next.js) qui sera accessible à l'URL en tapant: '/logger'.
-   2.2 - Dans ce composant de page 'logger'. Importer le composant: (Logger_Interface) depuis '/Logger-Interface/page/Interface'.
-      Exp: 
-      ```
-         import Logger_Interface from '@/utils/Logger-Interface/page/Interface';
+      2.1 - Creer un composant de page 'logger' (React.js ou Next.js) qui sera accessible à l'URL en tapant: '/logger'.
 
-         const page = () =>
-         {
-         return (
-            <div>
-               <Logger_Interface />
-            </div>
-         )
-         }
+      2.2 - Dans ce composant de page 'logger'. Importer le composant: (Logger_Interface) depuis '/Logger-Interface/page/Interface'.
+            Exp: 
+            ```
+               import Logger_Interface from '@/utils/Logger-Interface/page/Interface';
 
-         export default page
+               const page = () =>
+               {
+                  return (
+                     <div>
+                        <Logger_Interface />
+                     </div>
+                  )
+               }
 
-      ```
+               export default page;
+
+            ```
+   
+   2.3 - Configurer ou implémenter une API pour gérer les logs du serveur: 
+      2.3.1 en (REACT.js) - Voir le contenu et explication du code etant à l'emplacement du Repo:*** src\app\api\server-logs\route.ts *** afin de creer une API de comminunication avec votre server pour en faire de meme.
+
+      2.3.2 en (NEXT.js) - Copier simplement le dossier ou fichier à l'emplacement du Repo : *** src\app\api\server-logs\route.ts ***, dans votre Projet Next.js.
+
+      2.3.3 - Verifier une derniere fois L'URL de la Route API permettant la comminication avec votre server pour la gestion des Logs (Cote Server).
+
+            a - PAR EXAMPLE cette Route API next.js du Repo permettant la communication avec votre server pour la gestion des Logs (Cote Server): 
+               
+               *** src\app\api\server-logs\route.ts ***
+               * Implique alors que l'Url d'acces à cette API sera:
+               -> http://localhost:3000/api/server-logs
+
+               * Cet URL peut varier en fonction de votre (Backend et de la route API) que vous avez attribuer pour gerer vos LOGS Coté Backend.
+
+               * CE Repo Github REPOND A UNE PROBLEMATIQUE DONNEE ET DANS UN CONTEXTE DE PROJET NEXT.js FULLTACK.
+               VOUS DEVEZ ALORS ADAPTER CES CODES ET CELUI DE 'serverLogger' EN FONCTION DE VOTRE CONTEXTE, SI VOTRE BACKEND OU VOTRE APPROCHE DIFERE.
+
+
+            b - Etant donnee que le composant [*** src\utils\Logger-Interface\service\clientLogger\clientLogger.ts ***] du Repo actuel, Stock les LOGS (Cote Client) dans le NAVIGATEUR mais aussi depend de l'appel de cette route API pour GERER LES LOGS (Cote Server) par le Biais de ces fonctions qui le regi : 
+
+               * clearServerAllLogs()  // Supprime tous les logs du serveur.
+               * getServerLogs()       // Récupère les logs serveur depuis l'API.
+
+               Pour enfin rassembler tous les LOGS (Client & Server) pour une gestion avancée dans l'Interface Utilisateur.
+
+            c - DES LORS, CREER UN FICHIER '.env' ou '.env.local' dans la racine de votre projet, si cela n'est pas deja fait.
+
+            d - Ajouter cette variable d'environnement dans le fichier '.env' ou '.env.local' precedemment creer:
+               -> NEXT_PUBLIC_SERVER_LOGGER_API_URL
+
+            e - Enfin, Ajouter l'URL de votre Route API qui gere les logs (Cote Server) la variable d'environnement precedemment creer dans le fichier '.env' ou '.env.local':
+
+               -> NEXT_PUBLIC_SERVER_LOGGER_API_URL=http://localhost:3000/api/server-logs
+
+
+   2.5 - ✨ ENjoy ✨. Vous pouvez maintenant :
+
+         a - Acceder à votre interface du Logger en tapant à votre Url: '/logger'. NB:(Assurez vous d'avoir bien effectuer les Indications de : [2- Configuration] ).
+
+         b - Creer maintenant vos logs et gerer les comme vous le souhaitez!
 ```
 
 
