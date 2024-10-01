@@ -414,7 +414,7 @@ Project
 
             import { logger } from '@/utils/Logger-Interface/service/serverLogger/index';
 
-            logger.info('Application démarrée');
+            logger.info('SERVER démarré');
 
             try {
                // Votre code ici
@@ -441,6 +441,27 @@ Project
          - Log d'opération de base de données : Détails sur une requête.
          - Log système : Information sur une mise à jour.
          - Log de sécurité : Alerte sur une tentative d'accès non autorisé.
+
+
+
+      // Interface définissant la structure d'une entrée de log.
+      interface LogEntry {
+         id: number; // Identifiant unique auto-incrémenté.
+         timestamp: string; // Date et heure du log au format ISO 8601.
+         level: 'info' | 'warn' | 'error' | 'debug'; // Niveau de gravité du log.
+         fileName: string; // Nom du fichier source du log.
+         lineNumber: number; // Numéro de ligne du log dans le fichier source.
+         message: string; // Message du log.
+         details?: any; // Détails supplémentaires optionnels.
+         key?: string;  // Clé unique pour faciliter la recherche et filtrer des entrées spécifiques.
+         context: 'client' | 'server'; // Contexte du log (client ou serveur).
+         sessionId: string; // Identifiant de session utilisateur.
+         userAgent?: string; // Agent utilisateur (navigateur web).
+         metadata?: Record<string, any>; // Métadonnées supplémentaires optionnelles.
+         hash: string; // Hash unique du log pour éviter les doublons
+      }
+
+
 
 
     # Dans chaque exemple, vous pouvez voir comment le logger est utilisé avec différentes combinaisons de messages, détails et métadonnées. La structure générale est :
