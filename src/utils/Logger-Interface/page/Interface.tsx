@@ -1,4 +1,4 @@
-// ecn-front/src/utils/Logger-Interface/page/Interface.tsx
+// /src/utils/Logger-Interface/page/Interface.tsx
 
 "use client";
 

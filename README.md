@@ -24,15 +24,18 @@ Project
         │   ├───api\
         │   │   └───server-logs\
         │   │       └───route.ts     
+        │   │
         │   └───logger\
         │       └───page.tsx        
         │
         │   
         └───utils\
             └───Logger-Interface\
-                  ├───old-logger-version\          
+                  ├───old-logger-version\  
+                  │        
                   ├───page\
                   │     └───Interface.tsx
+                  │
                   ├───service\
                   │     ├───clientLogger\
                   │     │     ├───clientLogger.ts

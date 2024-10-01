@@ -165,11 +165,11 @@ class ClientLogger implements ILogger {
     try {
       const response = await fetch('/api/server-logs');
       if (!response.ok) {
-        throw new Error('Failed to fetch server logs');
+        // throw new Error('Failed to fetch server logs');
       }
       return await response.json();
     } catch (error) {
-      console.error('Error fetching server logs:', error);
+      // console.error('Error fetching server logs:', error);
       return [];
     }
   }
@@ -184,14 +184,14 @@ class ClientLogger implements ILogger {
       });
   
       if (!response.ok) {
-        throw new Error('Échec de la suppression des logs');
+        // throw new Error('Échec de la suppression des logs');
       }
   
       const result = await response.json();
       console.log(result.message); // Affiche le message de confirmation
   
     } catch (error) {
-      console.error('Erreur lors de la suppression des logs:', error);
+      // console.error('Erreur lors de la suppression des logs:', error);
     }
   }
 
