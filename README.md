@@ -344,15 +344,16 @@ Project
                
                *** src\app\api\server-logs\route.ts ***
                * Implique alors que l'Url d'acces à cette API sera:
-               -> http://localhost:3000/api/server-logs
+                  -> http://localhost:3000/api/server-logs
 
                * Cet URL peut varier en fonction de votre (Backend et de la route API) que vous avez attribuer pour gerer vos LOGS Coté Backend.
 
                * CE Repo Github REPOND A UNE PROBLEMATIQUE DONNEE ET DANS UN CONTEXTE DE PROJET NEXT.js FULLTACK.
-               VOUS DEVEZ ALORS ADAPTER CES CODES ET CELUI DE 'serverLogger' EN FONCTION DE VOTRE CONTEXTE, SI VOTRE BACKEND OU VOTRE APPROCHE DIFERE.
+               VOUS DEVEZ ALORS ADAPTER CES CODES ET CELUI DU 'serverLogger' EN FONCTION DE VOTRE CONTEXTE, SI VOTRE BACKEND OU VOTRE APPROCHE DIFERE.
 
 
-            b - Etant donnee que le composant [*** src\utils\Logger-Interface\service\clientLogger\clientLogger.ts ***] du Repo actuel, Stock les LOGS (Cote Client) dans le NAVIGATEUR mais aussi depend de l'appel de cette route API pour GERER LES LOGS (Cote Server) par le Biais de ces fonctions qui le regi : 
+            b - Etant donnee que le composant [*** src\utils\Logger-Interface\service\clientLogger\clientLogger.ts ***] du Repo actuel, Stock les LOGS
+             (Cote Client) dans le NAVIGATEUR mais aussi depend de l'appel de cette route API pour GERER LES LOGS (Cote Server) par le Biais de ces fonctions qui le regi : 
 
                * clearServerAllLogs()  // Supprime tous les logs du serveur.
                * getServerLogs()       // Récupère les logs serveur depuis l'API.
@@ -374,6 +375,146 @@ Project
          a - Acceder à votre interface du Logger en tapant à votre Url: '/logger'. NB:(Assurez vous d'avoir bien effectuer les Indications de : [2- Configuration] ).
 
          b - Creer maintenant vos logs et gerer les comme vous le souhaitez!
+```
+
+
+
+
+
+### EXAMPLES ET CAS D'UTILISATION DES LOGGER DANS LES COMPOSANTS (CLIENT OU SERVER)
+
+
+```
+
+    #  IMPORTATION DANS UN COMPOSANT (CLIENT)
+         
+            import { logger } from '@/utils/Logger-Interface/service/clientLogger/index';
+
+            const page = () =>
+            {
+
+               logger.info('Application démarrée');
+
+               try {
+                  // Votre code ici
+               } catch (error) {
+                  logger.error('Une erreur est survenue', error);
+               }
+
+               return (
+                  <div>   </div>
+               )
+            }
+            export default page;
+
+
+
+
+    #  IMPORTATION DANS UN COMPOSANT (SERVER)
+
+
+            import { logger } from '@/utils/Logger-Interface/service/serverLogger/index';
+
+            logger.info('Application démarrée');
+
+            try {
+               // Votre code ici
+            } catch (error) {
+               logger.error('Une erreur est survenue', error);
+            }
+
+```
+
+
+
+### EXPLICATION APROFONDIE ET CAS D'UTILISATION DES LOGGER DANS LES COMPOSANTS (CLIENT OU SERVER)
+
+```
+    # Ces exemples montrent différentes façons d'utiliser le logger dans divers scénarios :
+
+         - Log simple : Juste un message.
+         - Log avec détails : Message + objet de détails.
+         - Log d'erreur : Capture d'une exception avec stack trace.
+         - Log de débogage : Message + détails + métadonnées.
+         - Log avec contexte : Information sur une action spécifique.
+         - Log de performance : Mesure du temps d'exécution.
+         - Log d'interaction utilisateur : Capture d'un événement UI.
+         - Log d'opération de base de données : Détails sur une requête.
+         - Log système : Information sur une mise à jour.
+         - Log de sécurité : Alerte sur une tentative d'accès non autorisé.
+
+
+    # Dans chaque exemple, vous pouvez voir comment le logger est utilisé avec différentes combinaisons de messages, détails et métadonnées. La structure générale est :
+
+     * logger.[niveau]('message', { détails }, { métadonnées });
+
+         - Le niveau peut être info, warn, error, ou debug.
+         - Le message est une chaîne de caractères décrivant l'événement.
+         - Les détails sont un objet contenant des informations spécifiques à l'événement.
+         - Les métadonnées sont un objet optionnel contenant des informations contextuelles supplémentaires.
+
+
+
+
+      // Exemple 1 : Log d'information simple
+         logger.info('Utilisateur connecté');
+
+
+      // Exemple 2 : Log d'avertissement avec détails
+         logger.warn('Tentative de connexion échouée', { username: 'john_doe', attempts: 3 });
+
+
+      // Exemple 3 : Log d'erreur avec stack trace
+         try {
+            throw new Error('Erreur inattendue');
+         } catch (error) {
+            logger.error('Une erreur est survenue', { error: error.message, stack: error.stack });
+         }
+
+
+      // Exemple 4 : Log de débogage avec métadonnées
+      logger.debug('Début du processus de paiement', { orderID: '12345' }, { userID: 'user_789', paymentMethod: 'carte' });
+
+      // Exemple 5 : Log d'information avec contexte spécifique
+      logger.info('Nouvelle commande créée',
+        { orderDetails: { id: 'order_123', total: 99.99 } },
+        { customerSegment: 'premium', source: 'mobile_app' }
+      );
+
+      // Exemple 6 : Log de performance
+      const startTime = performance.now();
+      // ... code à mesurer ...
+      const endTime = performance.now();
+      logger.info('Performance de la fonction',
+        { executionTime: endTime - startTime },
+        { functionName: 'processData', dataSize: '1MB' }
+      );
+
+      // Exemple 7 : Log d'un événement utilisateur
+      logger.info('Clic sur le bouton d\'achat',
+        { buttonID: 'buy-now-123' },
+        { pageURL: window.location.href, timestamp: new Date().toISOString() }
+      );
+
+      // Exemple 8 : Log d'une opération de base de données
+      logger.debug('Requête à la base de données',
+        { query: 'SELECT * FROM users WHERE active = true', resultCount: 150 },
+        { dbName: 'userDB', queryTime: '50ms' }
+      );
+
+      // Exemple 9 : Log d'une action du système
+      logger.info('Mise à jour du système effectuée',
+        { version: '2.1.0', updateComponents: ['core', 'ui', 'api'] },
+        { adminUser: 'system_admin', updateDuration: '5m 30s' }
+      );
+
+      // Exemple 10 : Log d'un événement de sécurité
+      logger.warn('Tentative d\'accès non autorisé détectée',
+        { targetResource: '/admin/users', ipAddress: '192.168.1.100' },
+        { securityLevel: 'high', actionTaken: 'ip_blocked' }
+      );
+
+
 ```
 
 
