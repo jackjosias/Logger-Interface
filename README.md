@@ -381,13 +381,12 @@ Project
 
 
 
-### EXAMPLES ET CAS D'UTILISATION DES LOGGER DANS LES COMPOSANTS (CLIENT OU SERVER)
+### EXAMPLES ET CAS D'UTILISATION DE LOGGER DANS LES COMPOSANTS (CLIENT OU SERVER)
 
-
-```
 
     #  IMPORTATION DANS UN COMPOSANT (CLIENT)
-         
+
+```         
             import { logger } from '@/utils/Logger-Interface/service/clientLogger/index';
 
             const page = () =>
@@ -406,12 +405,12 @@ Project
                )
             }
             export default page;
-
+```
 
 
 
     #  IMPORTATION DANS UN COMPOSANT (SERVER)
-
+```
 
             import { logger } from '@/utils/Logger-Interface/service/serverLogger/index';
 
@@ -427,7 +426,7 @@ Project
 
 
 
-### EXPLICATION APROFONDIE ET CAS D'UTILISATION DES LOGGER DANS LES COMPOSANTS (CLIENT OU SERVER)
+### EXPLICATION APROFONDIE ET CAS D'UTILISATION DE LOGGER DANS LES COMPOSANTS (CLIENT OU SERVER)
 
 ```
     # Ces exemples montrent différentes façons d'utiliser le logger dans divers scénarios :
