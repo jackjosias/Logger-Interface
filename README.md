@@ -117,8 +117,8 @@ Project
 
     2 -> npm install react react-dom@latest chart.js@latest react-chartjs-2@latest date-fns@latest react-bootstrap@latest  uuid@latest chartjs-adapter-date-fns@latest --save  --legacy-peer-deps
 
-    4 -> npm install idb@latest uuid@latest fs@latest path@latest --save  --legacy-peer-deps
+    3 -> npm install idb@latest uuid@latest fs@latest path@latest --save  --legacy-peer-deps
 
-    6 -> npm update --legacy-peer-deps
+    4 -> npm update --legacy-peer-deps
 
-    7 -> npm audit
+    5 -> npm audit
