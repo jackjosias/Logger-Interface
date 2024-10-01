@@ -25,6 +25,10 @@ Cette interface est sous la licence MIT, permettant une utilisation libre tout e
 ![Image3 CAPTURES D'ECRAN DU GESTIONNAIRE Logger-Interface ](https://raw.githubusercontent.com/jackjosias/Logger-Interface/refs/heads/main/log-interface3.png)
 
 
+![Image4 CAPTURES D'ECRAN DU GESTIONNAIRE Logger-Interface ](https://raw.githubusercontent.com/jackjosias/Logger-Interface/refs/heads/main/log-interface4.png)
+
+
+
 ### ARBORESCENCE DE DOSSIER FAIT EN NEXT.JS (14.2.13) 
 
 ```
