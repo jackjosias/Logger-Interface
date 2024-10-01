@@ -70,7 +70,7 @@ const LogViewerPage: React.FC = () =>
     {
       setTimeout(() => {
         window.location.reload();
-      }, 3333); // Délai de 3 secondes (3000 millisecondes)
+      }, 1500); // Délai de 1.5 secondes
     };
 
   const filterLogs = useCallback(() => 
