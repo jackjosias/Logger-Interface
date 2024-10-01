@@ -65,7 +65,7 @@ import { useState, useEffect, useCallback } from 'react'; // Importe les hooks u
 
 // Importe les fonctions logger et le type LogEntry du module personnalisé situé dans '@/utils/Logger-Interface/service/clientLogger/index'.
 // On suppose que ce module contient la logique pour interagir avec un service de journalisation.
-import { logger, LogEntry } from '@/utils/Logger-Interface/service/clientLogger/index';
+import { logger, LogEntry } from '../Logger-Interface/service/clientLogger/index';
 
 
 // Définition d'un hook personnalisé nommé useLogger. 

@@ -4,8 +4,8 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 
-import { useLogger } from '@/utils/Logger-Interface/useLogger';
-import { logger } from '@/utils/Logger-Interface/service/clientLogger/index';
+import { useLogger } from '../useLogger';
+import { logger } from '../service/clientLogger/index';
 
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, TimeScale, PointElement, LineElement, ArcElement, DoughnutController, PieController } from 'chart.js';
 import { Bar, Line, Pie, Doughnut, Bubble, Scatter } from 'react-chartjs-2';

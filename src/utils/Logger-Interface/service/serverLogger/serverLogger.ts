@@ -3,35 +3,6 @@ import path from 'path'; // Importe le module 'path' pour travailler avec les ch
 import { v4 as uuidv4 } from 'uuid'; // Importe la fonction 'uuidv4' du module 'uuid' pour générer des identifiants uniques.
 import { ILogger, LogEntry } from '../clientLogger/clientLogger'; // Importe les interfaces 'ILogger' et 'LogEntry' du module 'clientLogger'.
 
-// Interface définissant la structure d'une entrée de journal
-interface LogEntry {
-    id: number; // Identifiant unique de l'entrée de journal
-    timestamp: string; // Horodatage de l'entrée de journal
-    level: 'info' | 'warn' | 'error' | 'debug'; // Niveau de l'entrée de journal
-    fileName: string; // Nom du fichier d'où provient l'entrée de journal
-    lineNumber: number; // Numéro de ligne d'où provient l'entrée de journal
-    message: string; // Message de l'entrée de journal
-    details?: any; // Détails supplémentaires de l'entrée de journal
-    key: string; // Clé unique pour l'entrée de journal
-    context: string; // Contexte de l'entrée de journal
-    sessionId: string; // ID de la session
-    metadata?: Record<string, any>; // Métadonnées supplémentaires
-    hash: string; // Hash de l'entrée de journal pour la déduplication
-}
-
-// Interface définissant les méthodes d'un logger
-interface ILogger {
-    log(level: 'info' | 'warn' | 'error' | 'debug', message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    info(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    warn(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    error(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    debug(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    getLogs(): Promise<LogEntry[]>;
-    clearLogs(): Promise<void>;
-    addListener(listener: () => void): () => void;
-    filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]>;
-}
-
 
 // Classe ServerLogger implémentant l'interface ILogger pour la gestion des journaux côté serveur.
 class ServerLogger implements ILogger {

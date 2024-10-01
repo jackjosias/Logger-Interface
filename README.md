@@ -294,6 +294,38 @@ Project
 
 
 
+### PRISE EN MAINS DANS VOS DIFFERENTS PROJETS.
+```
+***
+ En realite le Dossier [Logger-Interface] est le plus important, cela est la raison pour laquelle il est dans un dossier 'Utils' ou encore 'Utilitaire'.
+***
+
+1- Cloner le Repo actuel.
+   1.1 - Creer un dossier 'Utils' si cela n'a pas encore ete fait.
+   1.2 - copier le Dossier [Logger-Interface] dans le Dossier [Utils].
+   1.3 - INSTALLER TOUTES LES DEPENDANCES  voir en bas la liste des commandes. 👇🏾
+
+2- Configuration :
+   2.1 - Creer un composant de page 'logger' (React.js ou Next.js) qui sera accessible à l'URL en tapant: '/logger'.
+   2.2 - Dans ce composant de page 'logger'. Importer le composant: (Logger_Interface) depuis '/Logger-Interface/page/Interface'.
+      Exp: 
+      ```
+         import Logger_Interface from '@/utils/Logger-Interface/page/Interface';
+
+         const page = () =>
+         {
+         return (
+            <div>
+               <Logger_Interface />
+            </div>
+         )
+         }
+
+         export default page
+
+      ```
+```
+
 
 
 
