@@ -60,13 +60,33 @@ Project
                   
                   - DELETE /api/server-logs : Supprime tous les logs du serveur.
 
-                  Le code utilise l'injection de dépendances pour le logger, ce qui le rend plus testable et maintenable. Il gère également les erreurs de manière appropriée et utilise les promesses pour les opérations asynchrones.
+                  - Le code utilise l'injection de dépendances pour le logger, ce qui le rend plus testable et maintenable. Il gère également les erreurs de manière appropriée et utilise les promesses pour les opérations asynchrones.
 
             ☑️ Ce que le développeur Jack-Josias pensait :
 
                   Jack-Josias voulait créer une API simple et efficace pour gérer les logs du serveur. Il a choisi d'utiliser Next.js pour sa facilité d'utilisation et ses performances. Il a également mis l'accent sur la  lisibilité  et la maintenabilité du code en utilisant l'injection de dépendances et une gestion des erreurs appropriée.  Il imaginait probablement que cette API serait utilisée par une application web ou mobile pour surveiller et gérer les logs du serveur.
                   
 
+
+   👉🏽 *** src\app\logger\page.tsx ***
+
+            ☑️ Ce code est le composant principal d'une page Next.js qui affiche une interface de journalisation (logger). Son but est de présenter les logs à l'utilisateur. L'utilité principale est de centraliser l'affichage des logs, ce qui facilite le debugging et le suivi de l'application.
+
+
+            ☑️ Le composant page est responsable uniquement de la présentation. La logique de récupération et de formatage des logs est probablement gérée dans le composant Logger_Interface. Ceci permet une meilleure séparation des préoccupations et facilite la maintenance du code.
+                 
+                 - Répertoire pages: Les fichiers dans ce répertoire définissent les routes de l'application.
+
+                 - Composants: Next.js encourage l'utilisation de composants pour organiser le code et réutiliser les éléments d'interface utilisateur.
+
+                 - Importation de composants: L'utilisation de chemins relatifs avec @/ est une bonne pratique pour simplifier les imports et rendre le code plus lisible.
+            
+
+            ☑️Pensées du développeur (Jack-Josias) :
+
+                  Jack-Josias a probablement créé ce code pour simplifier l'importation de la page de visualisation des logs de l'application. Il a vraisemblablement voulu créer une interface centralisée pour faciliter le débogage et le suivi des événements.
+
+                  
 ```
 
 
