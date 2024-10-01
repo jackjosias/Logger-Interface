@@ -104,6 +104,7 @@ Project
             ☑️ Utilité : EN realité ce code appele et affiche seuelement l'Interface du Logger contenu dans le repertoire *** src\utils\Logger-Interface\page\Interface.tsx *** afin de separer les responsabilite et le rendre plus modulaire.
 
 
+
    👉🏽 *** src\utils\Logger-Interface\page\Interface.tsx ***
    
             ☑️ But : Ce composant Next.js fournit une interface utilisateur interactive pour visualiser et analyser les journaux d'application. Il permet de filtrer, trier et afficher les journaux dans un tableau, ainsi que de visualiser les données des journaux à l'aide de divers graphiques.
@@ -133,6 +134,7 @@ Project
                - Passerelles (Gateways) : Elles permettent d'accéder aux données externes, comme la fonction `useLogger` qui récupère les journaux.
                - Présentateurs : Ils formattent les données pour l'affichage dans l'interface utilisateur. Ici, les fonctions `getLogOverTimeChartData` et autres fonctions similaires agissent comme des présentateurs.
                - Interface utilisateur : C'est la partie visible de l'application. Le JSX dans ce composant représente l'interface utilisateur.
+
 
 
    👉🏽 *** src\utils\Logger-Interface\service\clientLogger\clientLogger.ts ***
@@ -174,7 +176,24 @@ Project
 
 
    👉🏽 *** src\utils\Logger-Interface\service\clientLogger\index.ts ***
+   
+            ☑️ * But : Ce code fournit un moyen simple et cohérent de journaliser des informations côté client dans une application Next.js. 
+
+            ☑️ * Utilité : La journalisation est essentielle pour le débogage, la surveillance des performances et l'analyse des erreurs dans une application. 
+               * Ce code centralise la logique de journalisation, ce qui facilite la gestion et la maintenance.
+            
+
+            ☑️ * Lacunes et améliorations possibles :
+                  *  - Ajouter la possibilité d'envoyer les journaux à un serveur distant pour une analyse centralisée.
+            
+            ☑️ * Pensées du développeur (Jack-Josias) :
+               
+                  *  L'objectif était probablement de créer un système de journalisation simple et efficace pour le côté client.
                   
+                  *  L'utilisation du patron Singleton suggère une volonté d'éviter la création de multiples instances du logger, ce qui pourrait entraîner des problèmes de performance ou de cohérence.
+                  
+                  *  Le code est concis et facile à comprendre, mais il pourrait être amélioré en ajoutant des fonctionnalités plus avancées.
+            
 
 ```
 
