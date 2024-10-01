@@ -14,24 +14,27 @@ Ce composant a été créé par [`Jack-Josias`]
 Cette interface est sous la licence MIT, permettant une utilisation libre tout en préservant les droits d'auteur de l'auteur.
 
 
+
 ### ARBORESCENCE DE DOSSIER FAIT EN NEXT.JS (14.2.13)
 
+```
 Project
     └───src\
         ├───app\
         │   ├───api\
         │   │   └───server-logs\
-        │   │       └───route.ts     //
+        │   │       └───route.ts     
         │   └───logger
-        │        └───page.TSX        //
+        │        └───page.TSX        
         │   
         └───utils\
             └───Logger-Interface\
-                ├───logger           // ANCIENE VERSION A IGNORER
+                ├───logger           
                 ├───page
                 └───service
                     ├───clientLogger
                     └───serverLogger
+```
 
 
 
