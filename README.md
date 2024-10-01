@@ -14,6 +14,16 @@ Ce composant a été créé par [`Jack-Josias`] 👨🏽‍💻.
 Cette interface est sous la licence MIT, permettant une utilisation libre tout en préservant les droits d'auteur de l'auteur.
 
 
+## QUELQUES CAPTURES D'ECRAN DU GESTIONNAIRE [Logger-Interface]:
+
+![Image1 CAPTURES D'ECRAN DU GESTIONNAIRE Logger-Interface ](https://raw.githubusercontent.com/jackjosias/Logger-Interface/refs/heads/main/log-interface1.png)
+
+
+![Image2 CAPTURES D'ECRAN DU GESTIONNAIRE Logger-Interface ](https://raw.githubusercontent.com/jackjosias/Logger-Interface/refs/heads/main/log-interface2.png)
+
+
+![Image3 CAPTURES D'ECRAN DU GESTIONNAIRE Logger-Interface ](https://raw.githubusercontent.com/jackjosias/Logger-Interface/refs/heads/main/log-interface3.png)
+
 
 ### ARBORESCENCE DE DOSSIER FAIT EN NEXT.JS (14.2.13) 
 
