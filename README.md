@@ -1,10 +1,10 @@
 # Logger-Interface for REACT.JS and NEXT.JS PROJECTS 💯
 
 
-### Cet UTILITAIRE [Logger-Interface] est en Réalité un composant TSX amélioré offrant une solution complète et conviviale pour la visualisation et l'analyse des logs. Les fonctionnalités de filtrage avancées, les graphiques interactifs et l'interface utilisateur intuitive facilitent l'identification rapide des tendances, la résolution des problèmes et la prise de décisions éclairées en fonction des données collectées
+### Cet UTILITAIRE [Logger-Interface] est en Réalité un composant TSX amélioré offrant une solution complète et conviviale pour la visualisation et l'analyse des logs. Les fonctionnalités de filtrage avancées, les graphiques interactifs et l'interface utilisateur intuitive facilitent l'identification rapide des tendances, la résolution des problèmes et la prise de décisions éclairées en fonction des données collectées. Pour une GESTION COMPLETE DES LOGS.
 
 
-## Propriété
+## Auteur
 
 Ce composant a été créé par [`Jack-Josias`] 👨🏽‍💻.
 
@@ -82,11 +82,34 @@ Project
                  - Importation de composants: L'utilisation de chemins relatifs avec @/ est une bonne pratique pour simplifier les imports et rendre le code plus lisible.
             
 
-            ☑️Pensées du développeur (Jack-Josias) :
+            ☑️ Pensées du développeur (Jack-Josias) :
 
                   Jack-Josias a probablement créé ce code pour simplifier l'importation de la page de visualisation des logs de l'application. Il a vraisemblablement voulu créer une interface centralisée pour faciliter le débogage et le suivi des événements.
-
                   
+
+
+   👉🏽 *** src\utils\Logger-Interface\page\Interface.tsx ***
+   
+            ☑️ But : Ce composant Next.js fournit une interface utilisateur interactive pour visualiser et analyser les journaux d'application. Il permet de filtrer, trier et afficher les journaux dans un tableau, ainsi que de visualiser les données des journaux à l'aide de divers graphiques.
+ 
+            ☑️ Utilité : Ce composant est utile pour le débogage, la surveillance des performances et l'analyse des erreurs dans une application. Il permet aux développeurs d'identifier rapidement les problèmes et de comprendre le comportement de l'application.
+
+
+            ☑️ Lacunes et améliorations possibles :
+               *  - Pagination pour gérer un grand nombre de journaux.
+               *  - Amélioration de la gestion des erreurs pour une meilleure expérience utilisateur.
+               *  - Ajout de plus de types de graphiques pour une analyse plus approfondie.
+               *  - Optimisation des performances pour les très grands ensembles de données.
+               *  - Internationalisation pour prendre en charge plusieurs langues.
+               
+
+            ☑️ Ce à quoi le développeur Jack-Josias pensait :
+               *  - Créer un outil complet et convivial pour visualiser et analyser les journaux.
+               *  - Fournir une interface claire et intuitive pour faciliter le débogage et la surveillance.
+               *  - Intégrer des graphiques interactifs pour une meilleure compréhension des données.
+               *  - Permettre aux utilisateurs de filtrer et de trier les journaux selon différents critères.
+               
+            
 ```
 
 
