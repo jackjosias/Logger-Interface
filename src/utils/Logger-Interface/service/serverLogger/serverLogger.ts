@@ -1,228 +1,269 @@
-import fs from 'fs/promises'; // Importe le module 'fs/promises' pour les opérations asynchrones sur le système de fichiers.
-import path from 'path'; // Importe le module 'path' pour travailler avec les chemins de fichiers.
-import { v4 as uuidv4 } from 'uuid'; // Importe la fonction 'uuidv4' du module 'uuid' pour générer des identifiants uniques.
-import { ILogger, LogEntry } from '../clientLogger/clientLogger'; // Importe les interfaces 'ILogger' et 'LogEntry' du module 'clientLogger'.
 
 
-// Classe ServerLogger implémentant l'interface ILogger pour la gestion des journaux côté serveur.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import fs from 'fs/promises';
+import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
+import { ILogger, LogEntry } from '../clientLogger/clientLogger';
+
 class ServerLogger implements ILogger {
-    private static instance: ServerLogger; // Instance unique de la classe ServerLogger (singleton).
-    private sessionId: string; // ID de session unique pour regrouper les journaux.
-    private logs: LogEntry[] = []; // Tableau contenant les entrées de journal.
-    private maxLogs: number = 1000; // Nombre maximum d'entrées de journal à conserver.
-    private maxAgeInDays: number = 7; // Durée maximale de conservation des journaux en jours.
-    private listeners: Set<() => void> = new Set(); // Ensemble des écouteurs pour les changements dans les journaux.
-    private logFilePath: string; // Chemin du fichier où sont stockés les journaux.
-    private logIndexPath: string; // Chemin du fichier d'index des journaux.
+  private static instance: ServerLogger;
+  private sessionId: string;
+  private logs: LogEntry[] = [];
+  private maxLogs: number = 1000;
+  private maxAgeInDays: number = 7;
+  private listeners: Set<() => void> = new Set();
+  private logFilePath: string;
+  private logIndexPath: string;
+  private writeQueue: Promise<void> = Promise.resolve();
+  private initialized: boolean = false;
 
+  private constructor() {
+    this.sessionId = this.generateSessionId();
+    this.logFilePath = path.join(process.cwd(), 'server-logs.json');
+    this.logIndexPath = path.join(process.cwd(), 'server-logs-index.json');
+  }
 
-    private constructor() {
-        this.sessionId = this.generateSessionId(); // Génère un ID de session unique lors de la création de l'instance.
-        this.logFilePath = path.join(process.cwd(), 'server-logs.json'); // Définit le chemin du fichier de journaux.
-        this.logIndexPath = path.join(process.cwd(), 'server-logs-index.json'); // Définit le chemin du fichier d'index des journaux pour la déduplication.
-        this.initServerStorage(); // Initialise le stockage des journaux.
-        this.cleanupOldLogs();
+  public static getInstance(): ServerLogger {
+    if (!ServerLogger.instance) {
+      ServerLogger.instance = new ServerLogger();
+    }
+    return ServerLogger.instance;
+  }
+
+  private generateSessionId(): string {
+    return uuidv4();
+  }
+
+  private async initServerStorage(): Promise<void> {
+    if (this.initialized) return;
+    try {
+      await fs.access(this.logFilePath);
+      await fs.access(this.logIndexPath);
+    } catch (error) {
+      await fs.writeFile(this.logFilePath, '[]');
+      await fs.writeFile(this.logIndexPath, '{}');
+    }
+    await this.loadLogsFromFile();
+    await this.cleanupOldLogs();
+    this.initialized = true;
+  }
+
+  private async loadLogsFromFile(): Promise<void> {
+    try {
+      const data = await fs.readFile(this.logFilePath, 'utf8');
+      this.logs = JSON.parse(data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des journaux depuis le fichier :', error);
+      this.logs = [];
+    }
+  }
+
+  public async log(level: 'info' | 'warn' | 'error' | 'debug', message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
+    await this.initServerStorage();
+    const logEntry: LogEntry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      level,
+      fileName: this.getCallerFile(),
+      lineNumber: this.getLineNumber(),
+      message,
+      details,
+      key: `${level}_${message}_${JSON.stringify(details)}`,
+      context: 'server',
+      sessionId: this.sessionId,
+      metadata,
+      hash: this.generateLogHash(level, message, details, metadata),
+    };
+
+    if (await this.isDuplicateLog(logEntry)) {
+      return;
     }
 
-    public static getInstance(): ServerLogger { // Méthode statique pour obtenir l'instance unique de ServerLogger (singleton).
-        if (!ServerLogger.instance) { // Si l'instance n'existe pas, la créer.
-            ServerLogger.instance = new ServerLogger();
-        }
-        return ServerLogger.instance; // Retourne l'instance unique.
-    }
+    this.logs.push(logEntry);
+    await this.enqueueSaveLogs();
+    await this.limitLogs();
+    this.notifyListeners();
+  }
 
-    private generateSessionId(): string { // Génère un ID de session unique à l'aide de la bibliothèque 'uuid'.
-        return uuidv4();
-    }
+  public async info(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
+    return this.log('info', message, details, metadata);
+  }
 
-    private async initServerStorage(): Promise<void> { // Initialise le stockage des journaux en créant les fichiers s'ils n'existent pas.
-        try {
-            await fs.access(this.logFilePath); // Vérifie si le fichier de journaux existe.
-            await fs.access(this.logIndexPath); // Vérifie si le fichier d'index existe.
+  public async warn(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
+    return this.log('warn', message, details, metadata);
+  }
 
-        } catch (error) {
-            await fs.writeFile(this.logFilePath, '[]'); // Crée le fichier de journaux s'il n'existe pas.
-            await fs.writeFile(this.logIndexPath, '{}'); // Crée le fichier d'index s'il n'existe pas.
-        }
+  public async error(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
+    return this.log('error', message, details, metadata);
+  }
 
-        await this.loadLogsFromFile(); // Charge les journaux depuis le fichier.
-    }
+  public async debug(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
+    return this.log('debug', message, details, metadata);
+  }
 
-
-    private async loadLogsFromFile(): Promise<void> { // Charge les journaux depuis le fichier de journaux.
-        try {
-            const data = await fs.readFile(this.logFilePath, 'utf8'); // Lit le contenu du fichier de journaux.
-            this.logs = JSON.parse(data); // Parse le contenu JSON du fichier et le stocke dans le tableau 'logs'.
-        } catch (error) {
-            console.error('Erreur lors du chargement des journaux depuis le fichier :', error); // Affiche un message d'erreur en cas de problème.
-            this.logs = []; // Réinitialise le tableau des journaux si une erreur se produit.
-        }
-    }
-
-    public async log(level: 'info' | 'warn' | 'error' | 'debug', message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-        // Crée une nouvelle entrée de journal avec les informations fournies.
-        const logEntry: LogEntry = {
-            id: Date.now(), // ID unique basé sur le timestamp actuel.
-            timestamp: new Date().toISOString(), // Horodatage de l'entrée.
-            level, // Niveau de l'entrée (info, warn, error, debug).
-            fileName: this.getCallerFile(), // Nom du fichier d'où provient l'entrée.
-            lineNumber: this.getLineNumber(), // Numéro de ligne d'où provient l'entrée.
-            message, // Message de l'entrée.
-            details, // Détails supplémentaires (optionnel).
-            key: `${level}_${message}_${JSON.stringify(details)}`, // Clé unique pour l'entrée.
-            context: 'server', // Contexte de l'entrée (serveur).
-            sessionId: this.sessionId, // ID de la session.
-            metadata, // Métadonnées supplémentaires (optionnel).
-            hash: this.generateLogHash(level, message, details, metadata), // Hash de l'entrée pour la déduplication.
-        };
-
-        // Vérifie si l'entrée de journal est un doublon
-        if (await this.isDuplicateLog(logEntry)) {
-            return; // Si c'est un doublon, ne pas l'enregistrer
-        }
-
-
-        this.logs.push(logEntry); // Ajoute la nouvelle entrée au tableau des journaux.
-        await this.saveLogs(); // Enregistre les journaux dans le fichier.
-        await this.limitLogs(); // Limite le nombre de journaux conservés.
-        this.notifyListeners(); // Notifie les écouteurs des changements.
-
-    }
-
-    public async info(message: string, details?: any, metadata?: Record<string, any>): Promise<void> { // Enregistre une entrée de niveau 'info'.
-        return this.log('info', message, details, metadata);
-    }
-
-    public async warn(message: string, details?: any, metadata?: Record<string, any>): Promise<void> { // Enregistre une entrée de niveau 'warn'.
-        return this.log('warn', message, details, metadata);
-    }
-
-    public async error(message: string, details?: any, metadata?: Record<string, any>): Promise<void> { // Enregistre une entrée de niveau 'error'.
-        return this.log('error', message, details, metadata);
-    }
-
-
-    public async debug(message: string, details?: any, metadata?: Record<string, any>): Promise<void> { // Enregistre une entrée de niveau 'debug'.
-        return this.log('debug', message, details, metadata);
-    }
-
-    private async saveLogs(): Promise<void> {
-        try {
-            // Enregistre les journaux dans le fichier, formattés avec 2 espaces d'indentation
-            await fs.writeFile(this.logFilePath, JSON.stringify(this.logs, null, 2));
-            const logIndex = await this.getLogIndex();
-            await fs.writeFile(this.logIndexPath, JSON.stringify(logIndex, null, 2));
-
-        } catch (error) {
-            console.error('Erreur lors de l\'enregistrement des journaux dans le fichier :', error);
-        }
-    }
-
-    private getCallerFile(): string { // Récupère le nom du fichier appelant.
-        const err = new Error(); // Crée une nouvelle erreur pour obtenir la pile d'appels.
+  private async enqueueSaveLogs(): Promise<void> {
+    this.writeQueue = this.writeQueue.then(async () => {
+      try {
+        await fs.writeFile(this.logFilePath, JSON.stringify(this.logs, null, 2));
+        const logIndex = await this.getLogIndex();
+        await fs.writeFile(this.logIndexPath, JSON.stringify(logIndex, null, 2));
+      } catch (error) {
+        console.error('Erreur lors de l\'enregistrement des journaux dans le fichier :', error);
+      }
+    });
+    await this.writeQueue;
+  }
+  
+    
+  // Récupère le nom du fichier source du log.
+    private getCallerFile(): string {
+        const err = new Error(); // Crée une nouvelle erreur pour capturer la pile d'appels.
         if (err.stack) { // Vérifie si la pile d'appels est disponible.
-            const stackLines = err.stack.split('\n'); // Divise la pile d'appels en lignes.
-            const callerLine = stackLines[3]; // Récupère la ligne de l'appelant (la troisième ligne de la pile).
-            const match = callerLine.match(/(?:at\s+)?(.+?):\d+:\d+/); // Extrait le nom du fichier de la ligne de l'appelant.
+            const stackLines = err.stack.split('\n'); // Sépare la pile d'appels en lignes.
+            const callerLine = stackLines[3]; // Récupère la ligne de l'appelant (3ème ligne, après l'erreur et getCallerFile).
+
+            const match = callerLine.match(/(?:at\s+)?(.+?):\d+:\d+/);  // Extrait le nom du fichier et le numéro de ligne avec une expression régulière.
             if (match) {
-                return match[1].split('/').pop() ?? 'unknown'; // Retourne le nom du fichier ou 'unknown' si non trouvé.
+                return match[1].split('/').pop() ?? 'unknown'; // Extrait le nom du fichier du chemin et retourne 'unknown' si non trouvé.
+
             }
         }
-        return 'unknown'; // Retourne 'unknown' si la pile d'appels n'est pas disponible.
+        return 'unknown'; // Retourne 'unknown' si la pile d'appels n'est pas disponible ou si le nom du fichier n'est pas trouvé.
     }
 
-    private getLineNumber(): number { // Récupère le numéro de ligne de l'appelant.
-        const err = new Error(); // Crée une nouvelle erreur pour obtenir la pile d'appels.
-        const stack = err.stack; // Obtient la pile d'appels.
+    // Récupère le numéro de ligne du log.
+    private getLineNumber(): number {
+        const err = new Error(); // Crée une nouvelle erreur pour capturer la pile d'appels.
+        const stack = err.stack;  // Récupère la pile d'appels.
         if (stack) { // Vérifie si la pile d'appels est disponible.
-            const stackLines = stack.split('\n'); // Divise la pile d'appels en lignes.
+            const stackLines = stack.split('\n'); // Sépare la pile d'appels en lignes.
             const callerLine = stackLines[3]; // Récupère la ligne de l'appelant.
-            const match = callerLine.match(/:(\d+):\d+/); // Extrait le numéro de ligne de la ligne de l'appelant.
+            const match = callerLine.match(/:(\d+):\d+/); // Extrait le numéro de ligne avec une expression régulière.
             if (match) {
-                return parseInt(match[1], 10); // Retourne le numéro de ligne ou 0 si non trouvé.
+                return parseInt(match[1], 10); // Convertit le numéro de ligne en entier.
             }
         }
-        return 0; // Retourne 0 si la pile d'appels n'est pas disponible.
-    }
-
-    public async getLogs(): Promise<LogEntry[]> { // Retourne tous les journaux.
-        await this.loadLogsFromFile(); // Charge les journaux depuis le fichier.
-        return this.logs; // Retourne le tableau des journaux.
-    }
-
-    public async clearLogs(): Promise<void> { // Efface tous les journaux.
-        this.logs = []; // Vide le tableau des journaux.
-        await this.saveLogs(); // Enregistre les journaux vides dans le fichier.
-        this.notifyListeners(); // Notifie les écouteurs des changements.
-    }
-
-    public addListener(listener: () => void): () => void { // Ajoute un écouteur pour les changements dans les journaux.
-        this.listeners.add(listener); // Ajoute l'écouteur à l'ensemble des écouteurs.
-        return () => this.listeners.delete(listener); // Retourne une fonction pour supprimer l'écouteur.
+        return 0; // Retourne 0 si la pile d'appels n'est pas disponible ou si le numéro de ligne n'est pas trouvé.
     }
 
 
-    private notifyListeners(): void { // Notifie tous les écouteurs des changements dans les journaux.
-        this.listeners.forEach(listener => listener()); // Appelle chaque écouteur.
+
+  public async getLogs(): Promise<LogEntry[]> {
+    await this.initServerStorage();
+    return this.logs;
+  }
+
+  public async clearLogs(): Promise<void> {
+    this.logs = [];
+    await this.enqueueSaveLogs();
+    this.notifyListeners();
+  }
+
+  public addListener(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notifyListeners(): void {
+    this.listeners.forEach(listener => listener());
+  }
+
+  private generateLogHash(level: string, message: string, details?: any, metadata?: Record<string, any>): string {
+    const content = `${level}:${message}:${JSON.stringify(details)}:${JSON.stringify(metadata)}`;
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
     }
+    return hash.toString(16);
+  }
 
-    // Génère un hash unique pour une entrée de journal afin de détecter les doublons
-    private generateLogHash(level: string, message: string, details?: any, metadata?: Record<string, any>): string {
-        const content = `${level}:${message}:${JSON.stringify(details)}:${JSON.stringify(metadata)}`; // Concatène les informations de l'entrée
-        let hash = 0; // Initialise le hash à 0
-        for (let i = 0; i < content.length; i++) { // Boucle sur chaque caractère du contenu
-            const char = content.charCodeAt(i); // Obtient le code ASCII du caractère
-            hash = ((hash << 5) - hash) + char; // Applique une opération de hachage
-            hash = hash & hash; // Conversion en entier 32 bits
-        }
-        return hash.toString(16); // Convertit le hash en une chaîne hexadécimale
+  private async isDuplicateLog(log: LogEntry): Promise<boolean> {
+    const logIndex = await this.getLogIndex();
+    return !!logIndex[log.hash];
+  }
+
+  private async getLogIndex(): Promise<Record<string, boolean>> {
+    try {
+      const data = await fs.readFile(this.logIndexPath, 'utf8');
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'index des journaux :', error);
+      return {};
     }
+  }
 
-    // Vérifie si une entrée de journal est un doublon en utilisant son hash
-    private async isDuplicateLog(log: LogEntry): Promise<boolean> {
-        const logIndex = await this.getLogIndex(); // Récupère l'index des journaux
-        return !!logIndex[log.hash]; // Retourne true si le hash existe déjà dans l'index, false sinon
+  public async filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]> {
+    await this.initServerStorage();
+    return this.logs.filter(log => 
+      Object.entries(criteria).every(([key, value]) => 
+        log[key as keyof LogEntry] === value
+      )
+    );
+  }
+
+  private async limitLogs(): Promise<void> {
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(this.logs.length - this.maxLogs);
+      await this.enqueueSaveLogs();
     }
+  }
 
+  private async cleanupOldLogs(): Promise<void> {
+    const now = new Date();
+    const oldestAllowedDate = new Date(now.getTime() - this.maxAgeInDays * 24 * 60 * 60 * 1000);
+    this.logs = this.logs.filter(log => new Date(log.timestamp) > oldestAllowedDate);
+    await this.enqueueSaveLogs();
+  }
 
-    private async getLogIndex(): Promise<Record<string, boolean>> { // Charge l'index des journaux depuis le fichier
-        try {
-            const data = await fs.readFile(this.logIndexPath, 'utf8'); // Lit le contenu du fichier d'index
-            return JSON.parse(data); // Parse le contenu JSON et le retourne
-        } catch (error) {
-            console.error('Erreur lors du chargement de l\'index des journaux :', error); // Affiche un message d'erreur en cas de problème
-            return {}; // Retourne un objet vide en cas d'erreur
-        }
-    }
+  public configure(options: { maxLogs?: number; maxAgeInDays?: number }): void {
+    if (options.maxLogs !== undefined) this.maxLogs = options.maxLogs;
+    if (options.maxAgeInDays !== undefined) this.maxAgeInDays = options.maxAgeInDays;
+  }
 
-    public async filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]> { // Filtre les journaux selon les critères spécifiés.
-        await this.loadLogsFromFile(); // Charge les journaux depuis le fichier.
-        return this.logs.filter(log =>
-            Object.entries(criteria).every(([key, value]) => log[key as keyof LogEntry] === value) // Filtre les journaux en fonction des critères.
-        );
-    }
-
-
-    private async limitLogs(): Promise<void> {
-        if (this.logs.length > this.maxLogs) { // Vérifie si le nombre de journaux dépasse la limite.
-            this.logs = this.logs.slice(this.logs.length - this.maxLogs); // Supprime les journaux les plus anciens si la limite est dépassée.
-            await this.saveLogs(); // Enregistre les journaux dans le fichier.
-        }
-    }
-
-
-    private async cleanupOldLogs(): Promise<void> { // Supprime les anciens journaux en fonction de maxAgeInDays
-        const now = new Date(); // Date actuelle
-        const oldestAllowedDate = new Date(now.getTime() - this.maxAgeInDays * 24 * 60 * 60 * 1000); // Calcule la date la plus ancienne autorisée
-        this.logs = this.logs.filter(log => new Date(log.timestamp) > oldestAllowedDate); // Filtre les journaux pour ne conserver que ceux dont la date est supérieure à la date la plus ancienne autorisée
-        await this.saveLogs(); // Enregistre les journaux mis à jour
-    }
+  public async rotateLogs(): Promise<void> {
+    const now = new Date();
+    const backupFileName = `server-logs-${now.toISOString().replace(/:/g, '-')}.json`;
+    const backupPath = path.join(process.cwd(), backupFileName);
+    await fs.copyFile(this.logFilePath, backupPath);
+    await this.clearLogs();
+  }
 }
 
+export { ServerLogger };
+export type { LogEntry, ILogger };
 
 
-export { ServerLogger }; // Exporte la classe ServerLogger.
-export type { LogEntry, ILogger }; // Exporte les interfaces LogEntry et ILogger.
+
+
+
+
+
 
 
 
