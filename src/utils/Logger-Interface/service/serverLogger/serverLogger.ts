@@ -1,38 +1,17 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import fs from 'fs/promises';
-import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import { ILogger, LogEntry } from '../clientLogger/clientLogger';
+import fs from "fs/promises";
+import path from "path";
+import { v4 as uuidv4 } from "uuid";
+import StackTrace from "stacktrace-js";
+import callsite from "callsite";
+import * as stackTrace from "stack-trace";
+import { ILogger, LogEntry } from "../clientLogger/clientLogger";
 
 class ServerLogger implements ILogger {
   private static instance: ServerLogger;
   private sessionId: string;
   private logs: LogEntry[] = [];
+  private logMap: Map<string, LogEntry> = new Map();
+  private recentLogs: Map<string, number> = new Map(); // Pour stocker les logs récents
   private maxLogs: number = 1000;
   private maxAgeInDays: number = 7;
   private listeners: Set<() => void> = new Set();
@@ -40,11 +19,12 @@ class ServerLogger implements ILogger {
   private logIndexPath: string;
   private writeQueue: Promise<void> = Promise.resolve();
   private initialized: boolean = false;
+  private recentLogExpirationTime: number = 5000; // 5 secondes
 
   private constructor() {
     this.sessionId = this.generateSessionId();
-    this.logFilePath = path.join(process.cwd(), 'server-logs.json');
-    this.logIndexPath = path.join(process.cwd(), 'server-logs-index.json');
+    this.logFilePath = path.join(process.cwd(), "server-logs.json");
+    this.logIndexPath = path.join(process.cwd(), "server-logs-index.json");
   }
 
   public static getInstance(): ServerLogger {
@@ -64,8 +44,8 @@ class ServerLogger implements ILogger {
       await fs.access(this.logFilePath);
       await fs.access(this.logIndexPath);
     } catch (error) {
-      await fs.writeFile(this.logFilePath, '[]');
-      await fs.writeFile(this.logIndexPath, '{}');
+      await fs.writeFile(this.logFilePath, "[]");
+      await fs.writeFile(this.logIndexPath, "{}");
     }
     await this.loadLogsFromFile();
     await this.cleanupOldLogs();
@@ -74,103 +54,321 @@ class ServerLogger implements ILogger {
 
   private async loadLogsFromFile(): Promise<void> {
     try {
-      const data = await fs.readFile(this.logFilePath, 'utf8');
-      this.logs = JSON.parse(data);
+      const data = await fs.readFile(this.logFilePath, "utf8");
+      if (data.trim() === "") {
+        this.logs = [];
+      } else {
+        this.logs = JSON.parse(data);
+        this.logs.forEach((log) => this.logMap.set(log.hash, log));
+      }
     } catch (error) {
-      console.error('Erreur lors du chargement des journaux depuis le fichier :', error);
+      console.error(
+        "Erreur lors du chargement des journaux depuis le fichier :",
+        error
+      );
       this.logs = [];
     }
   }
 
-  public async log(level: 'info' | 'warn' | 'error' | 'debug', message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
+  public async log(
+    level: "info" | "warn" | "error" | "debug",
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
     await this.initServerStorage();
     const logEntry: LogEntry = {
       id: Date.now(),
       timestamp: new Date().toISOString(),
       level,
-      fileName: this.getCallerFile(),
-      lineNumber: this.getLineNumber(),
+      fileName: await this.getCallerFile(),
+      lineNumber: await this.getLineNumber(),
       message,
       details,
       key: `${level}_${message}_${JSON.stringify(details)}`,
-      context: 'server',
+      context: "server",
       sessionId: this.sessionId,
       metadata,
-      hash: this.generateLogHash(level, message, details, metadata),
+      hash: this.generateLogHash(
+        level,
+        message,
+        details,
+        metadata,
+        new Date().toISOString()
+      ),
     };
 
-    if (await this.isDuplicateLog(logEntry)) {
-      return;
+    const logKey = `${level}_${message}_${JSON.stringify(details)}`;
+    const currentTime = Date.now();
+
+    if (this.recentLogs.has(logKey)) {
+      const lastLogTime = this.recentLogs.get(logKey)!;
+      if (currentTime - lastLogTime < this.recentLogExpirationTime) {
+        // Mettre à jour le log existant avec le dernier enregistrement
+        const existingLogIndex = this.logs.findIndex(
+          (log) => log.key === logKey
+        );
+        if (existingLogIndex !== -1) {
+          this.logs[existingLogIndex] = logEntry;
+        }
+      } else {
+        // Ajouter le nouveau log
+        this.logs.push(logEntry);
+        this.logMap.set(logEntry.hash, logEntry);
+        this.recentLogs.set(logKey, currentTime);
+      }
+    } else {
+      // Ajouter le nouveau log
+      this.logs.push(logEntry);
+      this.logMap.set(logEntry.hash, logEntry);
+      this.recentLogs.set(logKey, currentTime);
     }
 
-    this.logs.push(logEntry);
     await this.enqueueSaveLogs();
     await this.limitLogs();
     this.notifyListeners();
   }
 
-  public async info(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-    return this.log('info', message, details, metadata);
+  public async info(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("info", message, details, metadata);
   }
 
-  public async warn(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-    return this.log('warn', message, details, metadata);
+  public async warn(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("warn", message, details, metadata);
   }
 
-  public async error(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-    return this.log('error', message, details, metadata);
+  public async error(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("error", message, details, metadata);
   }
 
-  public async debug(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-    return this.log('debug', message, details, metadata);
+  public async debug(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("debug", message, details, metadata);
   }
 
   private async enqueueSaveLogs(): Promise<void> {
     this.writeQueue = this.writeQueue.then(async () => {
       try {
-        await fs.writeFile(this.logFilePath, JSON.stringify(this.logs, null, 2));
+        await fs.writeFile(
+          this.logFilePath,
+          JSON.stringify(this.logs, null, 2)
+        );
         const logIndex = await this.getLogIndex();
-        await fs.writeFile(this.logIndexPath, JSON.stringify(logIndex, null, 2));
+        await fs.writeFile(
+          this.logIndexPath,
+          JSON.stringify(logIndex, null, 2)
+        );
       } catch (error) {
-        console.error('Erreur lors de l\'enregistrement des journaux dans le fichier :', error);
+        console.error(
+          "Erreur lors de l'enregistrement des journaux dans le fichier :",
+          error
+        );
       }
     });
     await this.writeQueue;
   }
-  
-    
-  // Récupère le nom du fichier source du log.
-    private getCallerFile(): string {
-        const err = new Error(); // Crée une nouvelle erreur pour capturer la pile d'appels.
-        if (err.stack) { // Vérifie si la pile d'appels est disponible.
-            const stackLines = err.stack.split('\n'); // Sépare la pile d'appels en lignes.
-            const callerLine = stackLines[3]; // Récupère la ligne de l'appelant (3ème ligne, après l'erreur et getCallerFile).
 
-            const match = callerLine.match(/(?:at\s+)?(.+?):\d+:\d+/);  // Extrait le nom du fichier et le numéro de ligne avec une expression régulière.
-            if (match) {
-                return match[1].split('/').pop() ?? 'unknown'; // Extrait le nom du fichier du chemin et retourne 'unknown' si non trouvé.
-
-            }
-        }
-        return 'unknown'; // Retourne 'unknown' si la pile d'appels n'est pas disponible ou si le nom du fichier n'est pas trouvé.
+  private async getCallerFile(): Promise<string> {
+    const methods = [
+      this.getCallerFileFromStackTrace,
+      this.getCallerFileFromCallsite,
+      this.getCallerFileFromStackTraceLib,
+      this.getCallerFileFromErrorStack,
+      this.getCallerFileFromPrepareStackTrace,
+    ];
+    for (const method of methods) {
+      const fileName = await method();
+      if (fileName !== "unknown" && !fileName.includes("serverLogger")) {
+        return fileName;
+      }
     }
+    return "not found";
+  }
 
-    // Récupère le numéro de ligne du log.
-    private getLineNumber(): number {
-        const err = new Error(); // Crée une nouvelle erreur pour capturer la pile d'appels.
-        const stack = err.stack;  // Récupère la pile d'appels.
-        if (stack) { // Vérifie si la pile d'appels est disponible.
-            const stackLines = stack.split('\n'); // Sépare la pile d'appels en lignes.
-            const callerLine = stackLines[3]; // Récupère la ligne de l'appelant.
-            const match = callerLine.match(/:(\d+):\d+/); // Extrait le numéro de ligne avec une expression régulière.
-            if (match) {
-                return parseInt(match[1], 10); // Convertit le numéro de ligne en entier.
-            }
-        }
-        return 0; // Retourne 0 si la pile d'appels n'est pas disponible ou si le numéro de ligne n'est pas trouvé.
+  private async getLineNumber(): Promise<number> {
+    const methods = [
+      this.getLineNumberFromStackTrace,
+      this.getLineNumberFromCallsite,
+      this.getLineNumberFromStackTraceLib,
+      this.getLineNumberFromErrorStack,
+      this.getLineNumberFromPrepareStackTrace,
+    ];
+    for (const method of methods) {
+      const lineNumber = await method();
+      if (lineNumber !== 0) {
+        return lineNumber;
+      }
     }
+    return 0;
+  }
 
+  private async getCallerFileFromStackTrace(): Promise<string> {
+    try {
+      const stackframes = await StackTrace.get();
+      for (let i = 2; i < stackframes.length; i++) {
+        const caller = stackframes[i];
+        const fileName = caller.fileName || "unknown";
+        if (!fileName.includes("serverLogger")) {
+          return fileName;
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Erreur lors de la récupération de la pile d'appels avec stacktrace-js :",
+        error
+      );
+    }
+    return "unknown";
+  }
 
+  private async getLineNumberFromStackTrace(): Promise<number> {
+    try {
+      const stackframes = await StackTrace.get();
+      for (let i = 2; i < stackframes.length; i++) {
+        const caller = stackframes[i];
+        const lineNumber = caller.lineNumber || 0;
+        if (lineNumber !== 0) {
+          return lineNumber;
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Erreur lors de la récupération de la pile d'appels avec stacktrace-js :",
+        error
+      );
+    }
+    return 0;
+  }
+
+  private getCallerFileFromCallsite(): string {
+    const stack = callsite();
+    for (let i = 2; i < stack.length; i++) {
+      const caller = stack[i];
+      const fileName = caller.getFileName() || "unknown";
+      if (!fileName.includes("serverLogger")) {
+        return fileName;
+      }
+    }
+    return "unknown";
+  }
+
+  private getLineNumberFromCallsite(): number {
+    const stack = callsite();
+    for (let i = 2; i < stack.length; i++) {
+      const caller = stack[i];
+      const lineNumber = caller.getLineNumber() || 0;
+      if (lineNumber !== 0) {
+        return lineNumber;
+      }
+    }
+    return 0;
+  }
+
+  private getCallerFileFromStackTraceLib(): string {
+    const err = new Error();
+    const trace = stackTrace.parse(err);
+    for (let i = 2; i < trace.length; i++) {
+      const caller = trace[i];
+      const fileName = caller.getFileName() || "unknown";
+      if (!fileName.includes("serverLogger")) {
+        return fileName;
+      }
+    }
+    return "unknown";
+  }
+
+  private getLineNumberFromStackTraceLib(): number {
+    const err = new Error();
+    const trace = stackTrace.parse(err);
+    for (let i = 2; i < trace.length; i++) {
+      const caller = trace[i];
+      const lineNumber = caller.getLineNumber() || 0;
+      if (lineNumber !== 0) {
+        return lineNumber;
+      }
+    }
+    return 0;
+  }
+
+  private getCallerFileFromErrorStack(): string {
+    const err = new Error();
+    if (err.stack) {
+      const stackLines = err.stack.split("\n");
+      for (let i = 3; i < stackLines.length; i++) {
+        const callerLine = stackLines[i];
+        const match = callerLine.match(/(?:at\s+)?(.+?):\d+:\d+/);
+        if (match) {
+          const fileName = match[1].split("/").pop() || "unknown";
+          if (!fileName.includes("serverLogger")) {
+            return fileName;
+          }
+        }
+      }
+    }
+    return "unknown";
+  }
+
+  private getLineNumberFromErrorStack(): number {
+    const err = new Error();
+    if (err.stack) {
+      const stackLines = err.stack.split("\n");
+      for (let i = 3; i < stackLines.length; i++) {
+        const callerLine = stackLines[i];
+        const match = callerLine.match(/:(\d+):\d+/);
+        if (match) {
+          return parseInt(match[1], 10);
+        }
+      }
+    }
+    return 0;
+  }
+
+  private getCallerFileFromPrepareStackTrace(): string {
+    const originalPrepareStackTrace = Error.prepareStackTrace;
+    Error.prepareStackTrace = (_, stack) => stack;
+    const err = new Error();
+    const stack = err.stack as unknown as NodeJS.CallSite[];
+    Error.prepareStackTrace = originalPrepareStackTrace;
+    for (let i = 2; i < stack.length; i++) {
+      const caller = stack[i];
+      const fileName = caller.getFileName() || "unknown";
+      if (!fileName.includes("serverLogger")) {
+        return fileName;
+      }
+    }
+    return "unknown";
+  }
+
+  private getLineNumberFromPrepareStackTrace(): number {
+    const originalPrepareStackTrace = Error.prepareStackTrace;
+    Error.prepareStackTrace = (_, stack) => stack;
+    const err = new Error();
+    const stack = err.stack as unknown as NodeJS.CallSite[];
+    Error.prepareStackTrace = originalPrepareStackTrace;
+    for (let i = 2; i < stack.length; i++) {
+      const caller = stack[i];
+      const lineNumber = caller.getLineNumber() || 0;
+      if (lineNumber !== 0) {
+        return lineNumber;
+      }
+    }
+    return 0;
+  }
 
   public async getLogs(): Promise<LogEntry[]> {
     await this.initServerStorage();
@@ -179,6 +377,8 @@ class ServerLogger implements ILogger {
 
   public async clearLogs(): Promise<void> {
     this.logs = [];
+    this.logMap.clear();
+    this.recentLogs.clear();
     await this.enqueueSaveLogs();
     this.notifyListeners();
   }
@@ -189,40 +389,49 @@ class ServerLogger implements ILogger {
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(listener => listener());
+    this.listeners.forEach((listener) => listener());
   }
 
-  private generateLogHash(level: string, message: string, details?: any, metadata?: Record<string, any>): string {
-    const content = `${level}:${message}:${JSON.stringify(details)}:${JSON.stringify(metadata)}`;
+  private generateLogHash(
+    level: string,
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>,
+    timestamp?: string
+  ): string {
+    const content = `${level}:${message}:${JSON.stringify(
+      details
+    )}:${JSON.stringify(metadata)}:${timestamp}`;
     let hash = 0;
     for (let i = 0; i < content.length; i++) {
       const char = content.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash;
     }
     return hash.toString(16);
   }
 
-  private async isDuplicateLog(log: LogEntry): Promise<boolean> {
-    const logIndex = await this.getLogIndex();
-    return !!logIndex[log.hash];
-  }
-
   private async getLogIndex(): Promise<Record<string, boolean>> {
     try {
-      const data = await fs.readFile(this.logIndexPath, 'utf8');
+      const data = await fs.readFile(this.logIndexPath, "utf8");
+      if (data.trim() === "") {
+        return {};
+      }
       return JSON.parse(data);
     } catch (error) {
-      console.error('Erreur lors du chargement de l\'index des journaux :', error);
+      console.error(
+        "Erreur lors du chargement de l'index des journaux :",
+        error
+      );
       return {};
     }
   }
 
   public async filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]> {
     await this.initServerStorage();
-    return this.logs.filter(log => 
-      Object.entries(criteria).every(([key, value]) => 
-        log[key as keyof LogEntry] === value
+    return this.logs.filter((log) =>
+      Object.entries(criteria).every(
+        ([key, value]) => log[key as keyof LogEntry] === value
       )
     );
   }
@@ -230,25 +439,36 @@ class ServerLogger implements ILogger {
   private async limitLogs(): Promise<void> {
     if (this.logs.length > this.maxLogs) {
       this.logs = this.logs.slice(this.logs.length - this.maxLogs);
+      this.logMap.clear();
+      this.logs.forEach((log) => this.logMap.set(log.hash, log));
       await this.enqueueSaveLogs();
     }
   }
 
   private async cleanupOldLogs(): Promise<void> {
     const now = new Date();
-    const oldestAllowedDate = new Date(now.getTime() - this.maxAgeInDays * 24 * 60 * 60 * 1000);
-    this.logs = this.logs.filter(log => new Date(log.timestamp) > oldestAllowedDate);
+    const oldestAllowedDate = new Date(
+      now.getTime() - this.maxAgeInDays * 24 * 60 * 60 * 1000
+    );
+    this.logs = this.logs.filter(
+      (log) => new Date(log.timestamp) > oldestAllowedDate
+    );
+    this.logMap.clear();
+    this.logs.forEach((log) => this.logMap.set(log.hash, log));
     await this.enqueueSaveLogs();
   }
 
   public configure(options: { maxLogs?: number; maxAgeInDays?: number }): void {
     if (options.maxLogs !== undefined) this.maxLogs = options.maxLogs;
-    if (options.maxAgeInDays !== undefined) this.maxAgeInDays = options.maxAgeInDays;
+    if (options.maxAgeInDays !== undefined)
+      this.maxAgeInDays = options.maxAgeInDays;
   }
 
   public async rotateLogs(): Promise<void> {
     const now = new Date();
-    const backupFileName = `server-logs-${now.toISOString().replace(/:/g, '-')}.json`;
+    const backupFileName = `server-logs-${now
+      .toISOString()
+      .replace(/:/g, "-")}.json`;
     const backupPath = path.join(process.cwd(), backupFileName);
     await fs.copyFile(this.logFilePath, backupPath);
     await this.clearLogs();
@@ -257,15 +477,6 @@ class ServerLogger implements ILogger {
 
 export { ServerLogger };
 export type { LogEntry, ILogger };
-
-
-
-
-
-
-
-
-
 
 /*
 
@@ -339,6 +550,3 @@ Ce code s'intègre dans Next.js en fournissant un moyen de journaliser les évé
 
 
 */
-
-
-
