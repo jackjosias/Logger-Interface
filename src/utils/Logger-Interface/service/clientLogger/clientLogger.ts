@@ -1,444 +1,455 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb'; // Importe les fonctions nécessaires de la bibliothèque 'idb' pour gérer la base de données IndexedDB.
-import { v4 as uuidv4 } from 'uuid'; // Importe la fonction uuidv4 pour générer des identifiants uniques.
+import { openDB, DBSchema, IDBPDatabase } from "idb";
+import { v4 as uuidv4 } from "uuid";
+import StackTrace from "stacktrace-js";
 
-// Interface définissant le schéma de la base de données IndexedDB.
 interface LoggerDB extends DBSchema {
-    logs: { // Nom du magasin d'objets pour les logs.
-        key: number; // Clé primaire pour chaque entrée de log.
-        value: LogEntry; // Type de valeur pour chaque entrée de log.
-        indexes: { // Définition des index pour optimiser les recherches.
-            'by-timestamp': string; // Index par timestamp (date et heure).
-            'by-key': string; // Index par clé unique.
-            'by-hash': string;  // Index par hash unique pour éviter les doublons.
-        };
+  logs: {
+    key: number;
+    value: LogEntry;
+    indexes: {
+      "by-timestamp": string;
+      "by-key": string;
+      "by-hash": string;
     };
+  };
 }
 
-// Interface définissant la structure d'une entrée de log.
 interface LogEntry {
-    id: number; // Identifiant unique auto-incrémenté.
-    timestamp: string; // Date et heure du log au format ISO 8601.
-    level: 'info' | 'warn' | 'error' | 'debug'; // Niveau de gravité du log.
-    fileName: string; // Nom du fichier source du log.
-    lineNumber: number; // Numéro de ligne du log dans le fichier source.
-    message: string; // Message du log.
-    details?: any; // Détails supplémentaires optionnels.
-    key?: string;  // Clé unique pour faciliter la recherche et filtrer des entrées spécifiques.
-    context: 'client' | 'server'; // Contexte du log (client ou serveur).
-    sessionId: string; // Identifiant de session utilisateur.
-    userAgent?: string; // Agent utilisateur (navigateur web).
-    metadata?: Record<string, any>; // Métadonnées supplémentaires optionnelles.
-    hash: string; // Hash unique du log pour éviter les doublons
+  id: number;
+  timestamp: string;
+  level: "info" | "warn" | "error" | "debug";
+  fileName: string;
+  lineNumber: number;
+  message: string;
+  details?: any;
+  key?: string;
+  context: "client" | "server";
+  sessionId: string;
+  userAgent?: string;
+  metadata?: Record<string, any>;
+  hash: string;
 }
 
-// Interface définissant les méthodes du logger.
 export interface ILogger {
-    log(level: 'info' | 'warn' | 'error' | 'debug', message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    info(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    warn(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    error(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    debug(message: string, details?: any, metadata?: Record<string, any>): Promise<void>;
-    getLogs(): Promise<LogEntry[]>;
-    clearLogs(): Promise<void>;
-    filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]>;
-    addListener(listener: () => void): () => void;
+  log(
+    level: "info" | "warn" | "error" | "debug",
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void>;
+  info(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void>;
+  warn(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void>;
+  error(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void>;
+  debug(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void>;
+  getLogs(): Promise<LogEntry[]>;
+  clearLogs(): Promise<void>;
+  filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]>;
+  addListener(listener: () => void): () => void;
 }
 
-// Classe implémentant le logger côté client.
 class ClientLogger implements ILogger {
-    private static instance: ClientLogger; // Instance unique du logger (singleton).
-    private sessionId: string; // Identifiant de session.
-    private db: IDBPDatabase<LoggerDB> | null = null; // Instance de la base de données IndexedDB.
-    private dbInitialized: boolean = false; // Indicateur d'initialisation de la base de données.
-    private logs: LogEntry[] = []; // Tableau des logs en mémoire.
-    private maxLogs: number = 1000; // Nombre maximum de logs à conserver.
-    private maxAgeInDays: number = 7; // Durée maximale de conservation des logs en jours.
-    private listeners: Set<() => void> = new Set(); // Ensemble des écouteurs d'événements.
+  private static instance: ClientLogger;
+  private sessionId: string;
+  private db: IDBPDatabase<LoggerDB> | null = null;
+  private dbInitialized: boolean = false;
+  private logs: LogEntry[] = [];
+  private maxLogs: number = 1000;
+  private maxAgeInDays: number = 7;
+  private listeners: Set<() => void> = new Set();
 
-    private constructor() {
-        this.sessionId = this.generateSessionId(); // Génère un identifiant de session unique.
-        if (typeof window !== 'undefined') { // Vérifie si le code s'exécute dans un environnement navigateur.
-            this.initIndexedDB(); // Initialise la base de données IndexedDB.
-        }
+  private constructor() {
+    this.sessionId = this.generateSessionId();
+    if (typeof window !== "undefined") {
+      this.initIndexedDB();
     }
+  }
 
-    // Méthode statique pour obtenir l'instance unique du logger (singleton).
-    public static getInstance(): ClientLogger {
-        if (!ClientLogger.instance) {
-            ClientLogger.instance = new ClientLogger();
-        }
-        return ClientLogger.instance;
+  public static getInstance(): ClientLogger {
+    if (!ClientLogger.instance) {
+      ClientLogger.instance = new ClientLogger();
     }
+    return ClientLogger.instance;
+  }
 
-    // Génère un identifiant de session unique.
-    private generateSessionId(): string {
-        return uuidv4();
-    }
+  private generateSessionId(): string {
+    return uuidv4();
+  }
 
-    // Initialise la base de données IndexedDB.
-    private async initIndexedDB(): Promise<void> {
-        try {
-            this.db = await openDB<LoggerDB>('UniversalLoggerDB', 2, { // Ouvre ou crée la base de données 'UniversalLoggerDB' en version 2.
-                upgrade(db, oldVersion, newVersion, transaction) { // Fonction appelée lors d'une mise à jour de version de la base de données.
-                    if (oldVersion < 1) { // Si la version précédente est inférieure à 1.
-                        const store = db.createObjectStore('logs', { keyPath: 'id', autoIncrement: true }); // Crée le magasin d'objets 'logs' avec une clé primaire auto-incrémentée 'id'.
-                        store.createIndex('by-timestamp', 'timestamp'); // Crée un index 'by-timestamp' sur le champ 'timestamp'.
-                        store.createIndex('by-key', 'key'); // Crée un index 'by-key' sur le champ 'key'.
-                    }
-                    if (oldVersion < 2) { // Si la version précédente est inférieure à 2.
-                        const store = transaction.objectStore('logs'); // Récupère le magasin d'objets 'logs'.
-                        store.createIndex('by-hash', 'hash', { unique: true });  // Ajoute un index unique 'by-hash' pour le champ 'hash'
-                    }
-                },
-            });
-            this.dbInitialized = true; // Marque la base de données comme initialisée.
-            await this.loadLogsFromStorage(); // Charge les logs depuis la base de données.
-            await this.cleanupOldLogs();  // Supprime les anciens logs.
-
-        } catch (error) {
-            console.error('Erreur lors de l\'initialisation d\'IndexedDB :', error);
-            this.dbInitialized = false; // Marque la base de données comme non initialisée en cas d'erreur.
-        }
-    }
-
-    // Enregistre un log.
-    public async log(level: 'info' | 'warn' | 'error' | 'debug', message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-        const logEntry: LogEntry = {  // Crée un objet LogEntry.
-            id: Date.now(), // Utilise le timestamp actuel comme ID.
-            timestamp: new Date().toISOString(),  // Date et heure du log.
-            level,  // Niveau du log.
-            fileName: this.getCallerFile(), // Nom du fichier source.
-            lineNumber: this.getLineNumber(), // Numéro de ligne.
-            message, // Message du log.
-            details, // Détails optionnels.
-            key: `${level}_${message}_${JSON.stringify(details)}`, // Clé de recherche unique.
-            context: 'client', // Contexte du log (client).
-            sessionId: this.sessionId, // ID de session.
-            userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined, // Agent utilisateur (si disponible).
-            metadata, // Métadonnées optionnelles.
-            hash: this.generateLogHash(level, message, details, metadata), // Hash unique pour éviter la duplication.
-        };
-
-
-        if (await this.isDuplicateLog(logEntry)) { // Vérifie si le log est un doublon.
-            return; // Si c'est un doublon, on ne l'enregistre pas.
-        }
-
-        await this.saveLogToIndexedDB(logEntry); // Enregistre le log dans IndexedDB.
-        this.logs.push(logEntry); // Ajoute le log au tableau en mémoire.
-        await this.limitLogs(); // Limite le nombre de logs en mémoire et dans IndexedDB.
-        this.notifyListeners(); // Notifie les écouteurs d'événements.
-
-    }
-
-    // Enregistre un log d'information.
-    public async info(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-        return this.log('info', message, details, metadata);
-    }
-
-    // Enregistre un log d'avertissement.
-    public async warn(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-        return this.log('warn', message, details, metadata);
-    }
-
-    // Enregistre un log d'erreur.
-    public async error(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-        return this.log('error', message, details, metadata);
-    }
-
-    // Enregistre un log de débogage.
-    public async debug(message: string, details?: any, metadata?: Record<string, any>): Promise<void> {
-        return this.log('debug', message, details, metadata);
-    }
-
-
-    // Récupère tous les logs (client et serveur).
-    public async getLogs(): Promise<LogEntry[]> {
-        const clientLogs = await this.getClientLogs(); // Récupère les logs client.
-        const serverLogs = await this.getServerLogs(); // Récupère les logs serveur.
-
-        // Fusionner les logs client et serveur dans un seul tableau en conservant les propriétés 'context' distinctes.
-        const allLogs: LogEntry[] = [];
-        clientLogs.forEach(log => allLogs.push({ ...log, context: 'client' }));
-        serverLogs.forEach(log => allLogs.push({ ...log, context: 'server' }));
-
-
-        // Trier les logs par timestamp (du plus récent au plus ancien).
-        allLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        return allLogs;
-    }
-
-
-    // Récupère les logs client depuis IndexedDB ou la mémoire.
-    private async getClientLogs(): Promise<LogEntry[]> {
-        if (this.db && this.dbInitialized) { // Si la base de données est initialisée.
-            try {
-                return await this.db.getAll('logs'); // Récupère tous les logs de la base de données.
-            } catch (error) {
-                console.error('Erreur lors de la récupération des logs depuis IndexedDB :', error);
-                return this.logs; // Retourne les logs en mémoire en cas d'erreur.
+  private async initIndexedDB(): Promise<void> {
+    try {
+      this.db = await openDB<LoggerDB>("UniversalLoggerDB", 2, {
+        upgrade(db, oldVersion, newVersion, transaction) {
+          try {
+            if (oldVersion < 1) {
+              const store = db.createObjectStore("logs", {
+                keyPath: "id",
+                autoIncrement: true,
+              });
+              store.createIndex("by-timestamp", "timestamp");
+              store.createIndex("by-key", "key");
             }
-        }
-        return this.logs; // Retourne les logs en mémoire si la base de données n'est pas initialisée.
-    }
-
-    // Récupère les logs serveur depuis l'API.
-    private async getServerLogs(): Promise<LogEntry[]> {
-        try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_LOGGER_API_URL}`); // Fait une requête à l'API pour récupérer les logs serveur.
-            if (!response.ok) {
-                // Gérer les erreurs de requête ici si nécessaire, par exemple :
-                // throw new Error('Erreur lors de la récupération des logs serveur');
-                console.error('Erreur lors de la récupération des logs du serveur:', response.status);
+            if (oldVersion < 2) {
+              const store = transaction.objectStore("logs");
+              if (!store.indexNames.contains("by-hash")) {
+                store.createIndex("by-hash", "hash", { unique: true });
+              }
             }
-            return await response.json(); // Convertit la réponse JSON en un tableau de LogEntry.
-        } catch (error) {
-            // Gérer les erreurs de réseau ici si nécessaire, par exemple :
-            // console.error('Erreur lors de la récupération des logs serveur :', error);
-            return []; // Retourne un tableau vide en cas d'erreur.
-        }
+          } catch (error) {
+            console.error(
+              "Erreur lors de la mise à jour de la base de données :",
+              error
+            );
+          }
+        },
+      });
+      this.dbInitialized = true;
+      await this.loadLogsFromStorage();
+      await this.cleanupOldLogs();
+    } catch (error) {
+      console.error("Erreur lors de l'initialisation d'IndexedDB :", error);
+      this.dbInitialized = false;
+    }
+  }
+
+  public async log(
+    level: "info" | "warn" | "error" | "debug",
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    const logEntry: LogEntry = {
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+      level,
+      fileName: this.getCallerFile(),
+      lineNumber: this.getLineNumber(),
+      message,
+      details,
+      key: `${level}_${message}_${JSON.stringify(details)}`,
+      context: "client",
+      sessionId: this.sessionId,
+      userAgent:
+        typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      metadata,
+      hash: this.generateLogHash(level, message, details, metadata),
+    };
+
+    if (await this.isDuplicateLog(logEntry)) {
+      return;
     }
 
+    await this.saveLogToIndexedDB(logEntry);
+    this.logs.push(logEntry);
+    await this.limitLogs();
+    this.notifyListeners();
+  }
 
+  public async info(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("info", message, details, metadata);
+  }
 
-    // Supprime tous les logs du serveur.
-    private async clearServerAllLogs(): Promise<void> {
-        try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_SERVER_LOGGER_API_URL}`, 
-            { // Effectue une requête DELETE à l'API.
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
+  public async warn(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("warn", message, details, metadata);
+  }
 
-            if (!response.ok) {
-                // Gérer les erreurs de requête ici. Par exemple :
-                // throw new Error('Échec de la suppression des logs');
-                console.error('Échec de la suppression des logs du serveur:', response.status);
+  public async error(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("error", message, details, metadata);
+  }
 
-            }
-            const result = await response.json(); // Récupère la réponse JSON.
-            console.log(result.message); // Affiche le message de confirmation (si présent).
-        } catch (error) {
-            // Gérer les erreurs réseau ici. Par exemple :
-            // console.error('Erreur lors de la suppression des logs:', error);
-            console.error('Erreur lors de la suppression des logs du serveur:', error);
+  public async debug(
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    return this.log("debug", message, details, metadata);
+  }
 
-        }
-    }
+  public async getLogs(): Promise<LogEntry[]> {
+    const clientLogs = await this.getClientLogs();
+    const serverLogs = await this.getServerLogs();
+    const allLogs: LogEntry[] = [];
+    clientLogs.forEach((log) => allLogs.push({ ...log, context: "client" }));
+    serverLogs.forEach((log) => allLogs.push({ ...log, context: "server" }));
+    allLogs.sort(
+      (a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    return allLogs;
+  }
 
-    // Enregistre un log dans IndexedDB ou en mémoire.
-    private async saveLogToIndexedDB(logEntry: LogEntry): Promise<void> {
-        if (this.db && this.dbInitialized) { // Si la base de données est initialisée.
-            try {
-
-                await this.db.add('logs', logEntry); // Ajoute le log à la base de données.
-            } catch (error) {
-                if (error instanceof DOMException && error.name === 'ConstraintError') { // Gère les erreurs de contrainte (doublons).
-                    console.warn('Entrée de log dupliquée détectée, ignorée :', logEntry);
-                } else {
-                    console.error('Erreur lors de l\'enregistrement du log dans IndexedDB :', error);
-                    this.logs.push(logEntry); // Ajoute le log au tableau en mémoire en cas d'erreur.
-                }
-            }
-
-        } else {
-            this.logs.push(logEntry); // Ajoute le log au tableau en mémoire si la base de données n'est pas initialisée.
-        }
-    }
-
-    // Récupère le nom du fichier source du log.
-    private getCallerFile(): string {
-        const err = new Error(); // Crée une nouvelle erreur pour capturer la pile d'appels.
-        if (err.stack) { // Vérifie si la pile d'appels est disponible.
-            const stackLines = err.stack.split('\n'); // Sépare la pile d'appels en lignes.
-            const callerLine = stackLines[3]; // Récupère la ligne de l'appelant (3ème ligne, après l'erreur et getCallerFile).
-
-            const match = callerLine.match(/(?:at\s+)?(.+?):\d+:\d+/);  // Extrait le nom du fichier et le numéro de ligne avec une expression régulière.
-            if (match) {
-                return match[1].split('/').pop() ?? 'unknown'; // Extrait le nom du fichier du chemin et retourne 'unknown' si non trouvé.
-
-            }
-        }
-        return 'unknown'; // Retourne 'unknown' si la pile d'appels n'est pas disponible ou si le nom du fichier n'est pas trouvé.
-    }
-
-    // Récupère le numéro de ligne du log.
-    private getLineNumber(): number {
-        const err = new Error(); // Crée une nouvelle erreur pour capturer la pile d'appels.
-        const stack = err.stack;  // Récupère la pile d'appels.
-        if (stack) { // Vérifie si la pile d'appels est disponible.
-            const stackLines = stack.split('\n'); // Sépare la pile d'appels en lignes.
-            const callerLine = stackLines[3]; // Récupère la ligne de l'appelant.
-            const match = callerLine.match(/:(\d+):\d+/); // Extrait le numéro de ligne avec une expression régulière.
-            if (match) {
-                return parseInt(match[1], 10); // Convertit le numéro de ligne en entier.
-            }
-        }
-        return 0; // Retourne 0 si la pile d'appels n'est pas disponible ou si le numéro de ligne n'est pas trouvé.
-    }
-
-
-    // Charge les logs depuis IndexedDB.
-    private async loadLogsFromStorage(): Promise<void> {
-
-        if (this.db && this.dbInitialized) { // Si la base de données est initialisée.
-            try {
-
-                this.logs = await this.db.getAll('logs'); // Récupère tous les logs de la base de données.
-
-            } catch (error) {
-
-                console.error('Erreur lors du chargement des logs depuis IndexedDB :', error);
-            }
-        }
-    }
-
-
-    // Limite le nombre de logs en mémoire et dans IndexedDB.
-    private async limitLogs(): Promise<void> {
-
-        if (this.logs.length > this.maxLogs) { // Si le nombre de logs dépasse la limite.
-            this.logs = this.logs.slice(this.logs.length - this.maxLogs); // Supprime les logs les plus anciens du tableau en mémoire.
-
-            if (this.db && this.dbInitialized) { // Si la base de données est initialisée.
-                try {
-
-                    const tx = this.db.transaction('logs', 'readwrite'); // Crée une transaction en lecture/écriture.
-                    const store = tx.objectStore('logs'); // Récupère le magasin d'objets 'logs'.
-                    const keys = await store.getAllKeys(); // Récupère toutes les clés des logs.
-
-                    for (let i = 0; i < keys.length - this.maxLogs; i++) { // Supprime les anciens logs de la base de données.
-
-                        await store.delete(keys[i]);
-                    }
-                    await tx.done; // Attend la fin de la transaction.
-
-
-                } catch (error) {
-                    console.error('Erreur lors de la limitation des logs dans IndexedDB :', error);
-                }
-            }
-        }
-    }
-
-    // Supprime les anciens logs de la mémoire et d'IndexedDB.
-    private async cleanupOldLogs(): Promise<void> {
-        const now = new Date(); // Date actuelle.
-        const oldestAllowedDate = new Date(now.getTime() - this.maxAgeInDays * 24 * 60 * 60 * 1000); // Calcule la date la plus ancienne autorisée.
-
-        this.logs = this.logs.filter(log => new Date(log.timestamp) > oldestAllowedDate);  // Filtre les logs en mémoire pour ne conserver que ceux qui ne sont pas trop anciens.
-
-        if (this.db && this.dbInitialized) {  // Si la base de données est initialisée.
-            try {
-                const tx = this.db.transaction('logs', 'readwrite'); // Crée une transaction.
-                const store = tx.objectStore('logs'); // Récupère le magasin d'objets.
-                const index = store.index('by-timestamp'); // Utilise l'index 'by-timestamp' pour optimiser la recherche.
-                const range = IDBKeyRange.upperBound(oldestAllowedDate.toISOString()); // Crée une plage de clés pour les logs plus anciens que la date limite.
-                let cursor = await index.openCursor(range); // Ouvre un curseur sur l'index avec la plage de clés.
-
-
-                while (cursor) {
-                    await cursor.delete(); // Supprime le log actuel pointé par le curseur.
-                    cursor = await cursor.continue(); // Passe au log suivant.
-
-                }
-                await tx.done; // Finalise la transaction.
-
-
-            } catch (error) {
-                console.error('Erreur lors du nettoyage des anciens logs dans IndexedDB :', error);
-
-            }
-        }
-    }
-
-
-    // Supprime tous les logs.
-    public async clearLogs(): Promise<void> {
-
-        if (this.db && this.dbInitialized) {  // Si la base de données est initialisée.
-            try {
-
-                await this.db.clear('logs'); // Supprime tous les logs de la base de données.
-                await this.clearServerAllLogs(); // Supprime tous les logs du serveur.
-            } catch (error) {
-                console.error('Erreur lors de la suppression des logs depuis IndexedDB :', error);
-            }
-        }
-        this.logs = []; // Vide le tableau des logs en mémoire.
-        this.notifyListeners(); // Notifie les écouteurs d'événements.
-
-    }
-
-    // Ajoute un écouteur d'événements.
-    public addListener(listener: () => void): () => void {
-        this.listeners.add(listener); // Ajoute l'écouteur à l'ensemble des écouteurs.
-        return () => this.listeners.delete(listener); // Retourne une fonction pour supprimer l'écouteur.
-    }
-
-    // Notifie tous les écouteurs d'événements.
-    private notifyListeners(): void {
-
-        this.listeners.forEach(listener => listener()); // Appelle chaque écouteur.
-
-    }
-
-    // Génère un hash unique pour un log.
-    private generateLogHash(level: string, message: string, details?: any, metadata?: Record<string, any>): string {
-        const content = `${level}:${message}:${JSON.stringify(details)}:${JSON.stringify(metadata)}`; // Concatène les informations du log.
-        let hash = 0; // Initialise le hash à 0.
-        for (let i = 0; i < content.length; i++) { // Parcourt chaque caractère du contenu.
-            const char = content.charCodeAt(i); // Récupère le code Unicode du caractère.
-            hash = ((hash << 5) - hash) + char; // Applique une opération de hachage.
-            hash = hash & hash; // Convertit en entier 32 bits.
-        }
-        return hash.toString(16); // Convertit le hash en chaîne hexadécimale.
-    }
-
-
-    // Vérifie si un log est un doublon en comparant son hash avec les logs existants dans IndexedDB ou la mémoire.
-    private async isDuplicateLog(log: LogEntry): Promise<boolean> {
-
-        if (this.db && this.dbInitialized) { // Si IndexedDB est initialisé.
-            try {
-
-                const existingLog = await this.db.getFromIndex('logs', 'by-hash', log.hash);  // Recherche un log avec le même hash dans l'index 'by-hash'.
-                return !!existingLog; // Retourne true si un log avec le même hash existe, false sinon.
-            } catch (error) {
-
-                console.error('Erreur lors de la vérification des logs dupliqués :', error);
-                return false; // Retourne false en cas d'erreur.
-            }
-        }
-        return this.logs.some(existingLog => existingLog.hash === log.hash); // Recherche un doublon dans le tableau `logs` en mémoire si IndexedDB n'est pas disponible.
-    }
-
-    // Filtrer les logs en fonction des critères spécifiés.
-    public async filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]> {
-        const allLogs = await this.getLogs(); // Récupère tous les logs.
-        return allLogs.filter(log =>
-            Object.entries(criteria).every(([key, value]) => log[key as keyof LogEntry] === value) // Filtre les logs en fonction des critères.
+  private async getClientLogs(): Promise<LogEntry[]> {
+    if (this.db && this.dbInitialized) {
+      try {
+        return await this.db.getAll("logs");
+      } catch (error) {
+        console.error(
+          "Erreur lors de la récupération des logs depuis IndexedDB :",
+          error
         );
+        return this.logs;
+      }
     }
+    return this.logs;
+  }
 
+  private async getServerLogs(): Promise<LogEntry[]> {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_LOGGER_API_URL}`
+      );
+      if (!response.ok) {
+        console.error(
+          "Erreur lors de la récupération des logs du serveur:",
+          response.status
+        );
+      }
+      return await response.json();
+    } catch (error) {
+      return [];
+    }
+  }
+
+  private async clearServerAllLogs(): Promise<void> {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SERVER_LOGGER_API_URL}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      if (!response.ok) {
+        console.error(
+          "Échec de la suppression des logs du serveur:",
+          response.status
+        );
+      }
+      const result = await response.json();
+      console.log(result.message);
+    } catch (error) {
+      console.error(
+        "Erreur lors de la suppression des logs du serveur:",
+        error
+      );
+    }
+  }
+
+  private async saveLogToIndexedDB(logEntry: LogEntry): Promise<void> {
+    if (this.db && this.dbInitialized) {
+      try {
+        await this.db.add("logs", logEntry);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "ConstraintError") {
+          console.warn("Entrée de log dupliquée détectée, ignorée :", logEntry);
+        } else {
+          console.error(
+            "Erreur lors de l'enregistrement du log dans IndexedDB :",
+            error
+          );
+          this.logs.push(logEntry);
+        }
+      }
+    } else {
+      this.logs.push(logEntry);
+    }
+  }
+
+  private getCallerFile(): string {
+    const err = new Error();
+    if (err.stack) {
+      const stackLines = err.stack.split("\n");
+      const callerLine = stackLines[3];
+      const match = callerLine.match(/(?:at\s+)?(.+?):\d+:\d+/);
+      if (match) {
+        return match[1].split("/").pop() ?? "unknown";
+      }
+    }
+    return "unknown";
+  }
+
+  private getLineNumber(): number {
+    const err = new Error();
+    const stack = err.stack;
+    if (stack) {
+      const stackLines = stack.split("\n");
+      const callerLine = stackLines[3];
+      const match = callerLine.match(/:(\d+):\d+/);
+      if (match) {
+        return parseInt(match[1], 10);
+      }
+    }
+    return 0;
+  }
+
+  private async loadLogsFromStorage(): Promise<void> {
+    if (this.db && this.dbInitialized) {
+      try {
+        this.logs = await this.db.getAll("logs");
+      } catch (error) {
+        console.error(
+          "Erreur lors du chargement des logs depuis IndexedDB :",
+          error
+        );
+      }
+    }
+  }
+
+  private async limitLogs(): Promise<void> {
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(this.logs.length - this.maxLogs);
+      if (this.db && this.dbInitialized) {
+        try {
+          const tx = this.db.transaction("logs", "readwrite");
+          const store = tx.objectStore("logs");
+          const keys = await store.getAllKeys();
+          for (let i = 0; i < keys.length - this.maxLogs; i++) {
+            await store.delete(keys[i]);
+          }
+          await tx.done;
+        } catch (error) {
+          console.error(
+            "Erreur lors de la limitation des logs dans IndexedDB :",
+            error
+          );
+        }
+      }
+    }
+  }
+
+  private async cleanupOldLogs(): Promise<void> {
+    const now = new Date();
+    const oldestAllowedDate = new Date(
+      now.getTime() - this.maxAgeInDays * 24 * 60 * 60 * 1000
+    );
+    this.logs = this.logs.filter(
+      (log) => new Date(log.timestamp) > oldestAllowedDate
+    );
+    if (this.db && this.dbInitialized) {
+      try {
+        const tx = this.db.transaction("logs", "readwrite");
+        const store = tx.objectStore("logs");
+        const index = store.index("by-timestamp");
+        const range = IDBKeyRange.upperBound(oldestAllowedDate.toISOString());
+        let cursor = await index.openCursor(range);
+        while (cursor) {
+          await cursor.delete();
+          cursor = await cursor.continue();
+        }
+        await tx.done;
+      } catch (error) {
+        console.error(
+          "Erreur lors du nettoyage des anciens logs dans IndexedDB :",
+          error
+        );
+      }
+    }
+  }
+
+  public async clearLogs(): Promise<void> {
+    if (this.db && this.dbInitialized) {
+      try {
+        await this.db.clear("logs");
+        await this.clearServerAllLogs();
+      } catch (error) {
+        console.error(
+          "Erreur lors de la suppression des logs depuis IndexedDB :",
+          error
+        );
+      }
+    }
+    this.logs = [];
+    this.notifyListeners();
+  }
+
+  public addListener(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  private notifyListeners(): void {
+    this.listeners.forEach((listener) => listener());
+  }
+
+  private generateLogHash(
+    level: string,
+    message: string,
+    details?: any,
+    metadata?: Record<string, any>
+  ): string {
+    const content = `${level}:${message}:${JSON.stringify(
+      details
+    )}:${JSON.stringify(metadata)}`;
+    let hash = 0;
+    for (let i = 0; i < content.length; i++) {
+      const char = content.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash;
+    }
+    return hash.toString(16);
+  }
+
+  private async isDuplicateLog(log: LogEntry): Promise<boolean> {
+    if (this.db && this.dbInitialized) {
+      try {
+        const existingLog = await this.db.getFromIndex(
+          "logs",
+          "by-hash",
+          log.hash
+        );
+        return !!existingLog;
+      } catch (error) {
+        console.error(
+          "Erreur lors de la vérification des logs dupliqués :",
+          error
+        );
+        return false;
+      }
+    }
+    return this.logs.some((existingLog) => existingLog.hash === log.hash);
+  }
+
+  public async filterLogs(criteria: Partial<LogEntry>): Promise<LogEntry[]> {
+    const allLogs = await this.getLogs();
+    return allLogs.filter((log) =>
+      Object.entries(criteria).every(
+        ([key, value]) => log[key as keyof LogEntry] === value
+      )
+    );
+  }
 }
-
-
 
 export { ClientLogger };
 export type { LogEntry };
-
-
-
-
-
-
-
-
-
-
 
 /*
 
